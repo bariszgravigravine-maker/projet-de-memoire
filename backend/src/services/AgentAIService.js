@@ -56,14 +56,23 @@ export const AgentAIService = {
   },
 
   /**
-   * Recherche par image : extrait les caractéristiques du bien depuis l'image,
-   * cherche en base des biens similaires, et renvoie une réponse conversationnelle.
+   * Recherche par image : décrit d'abord ce que l'IA voit dans l'image,
+   * extrait les caractéristiques du bien, cherche en base des biens similaires,
+   * et renvoie une réponse conversationnelle complète.
    */
   async searchByImage(images, userId = null) {
-    // 1. Extraction des caractéristiques via vision IA
+    // 1. Description détaillée de l'image via vision IA
+    const imageDescription = await MistralService.analyzeImage(images,
+      "Décris cette image immobilière en détail en français : type de bien (maison, appartement, villa, studio, terrain), " +
+      "style architectural, état apparent, nombre estimé de chambres et de salles de bain visibles, " +
+      "couleurs dominantes, matériaux, environnement (urbain, rural, jardin, piscine, garage), " +
+      "éclairage, et toute particularité notable. Sois descriptif et précis."
+    );
+
+    // 2. Extraction des caractéristiques structurées via vision IA
     const features = await MistralService.extractPropertyFeatures(images);
 
-    // 2. Construction des critères de recherche depuis les features extraites
+    // 3. Construction des critères de recherche depuis les features extraites
     const searchCriteria = {};
     if (features.property_type && features.property_type !== 'null') {
       searchCriteria.type = features.property_type;
@@ -76,26 +85,44 @@ export const AgentAIService = {
       searchCriteria.bathroomsMin = Math.max(1, features.estimated_bathrooms - 1);
     }
 
-    // 3. Recherche en base de données
+    // 4. Recherche en base de données
     const results = await AdService.search(searchCriteria);
 
-    // 4. Enregistre l'interaction si l'utilisateur est connecté
+    // 5. Enregistre l'interaction si l'utilisateur est connecté
     if (userId && results.length > 0) {
       for (const r of results.slice(0, 5)) {
         await InteractionModel.recordView({ userId, adId: r.ad_id });
       }
     }
 
-    // 5. Réponse conversationnelle formatée par Mistral
-    const userContext = `L'utilisateur a envoyé une image d'un bien immobilier. Analyse IA : ${features.description || 'Bien immobilier'}. Type détecté : ${features.property_type || 'non déterminé'}, chambres estimées : ${features.estimated_bedrooms || '?'}, douches : ${features.estimated_bathrooms || '?'}, style : ${features.style || 'non déterminé'}.`;
-    const response = await MistralService.buildSearchResponse(userContext, results, {
-      type: features.property_type,
-      bedroomsMin: searchCriteria.bedroomsMin,
-      bathroomsMin: searchCriteria.bathroomsMin,
-    });
+    // 6. Réponse conversationnelle : description de l'image + propositions
+    const userContext = `L'utilisateur a envoyé une image d'un bien immobilier.
+
+DESCRIPTION DE L'IMAGE PAR L'IA :
+${imageDescription}
+
+CARACTÉRISTIQUES EXTRAITES :
+- Type détecté : ${features.property_type || 'non déterminé'}
+- Chambres estimées : ${features.estimated_bedrooms || '?'}
+- Douches/SDB estimées : ${features.estimated_bathrooms || '?'}
+- État : ${features.condition || 'non déterminé'}
+- Style : ${features.style || 'non déterminé'}
+- Piscine : ${features.has_pool ? 'oui' : 'non'}
+- Jardin : ${features.has_garden ? 'oui' : 'non'}
+- Garage : ${features.has_garage ? 'oui' : 'non'}
+- Balcon : ${features.has_balcony ? 'oui' : 'non'}
+- Terrasse : ${features.has_terrace ? 'oui' : 'non'}`;
+
+    const response = await MistralService.buildImageSearchResponse(
+      imageDescription,
+      features,
+      results,
+      searchCriteria
+    );
 
     return {
       features,
+      imageDescription,
       results,
       response,
       count: results.length,

@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard } from "lucide-react"
+import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getAds } from "@/lib/api"
+import { getAds, agentSearch } from "@/lib/api"
 import { Property3DMap } from "@/components/property-3d-map"
 import { Skeleton } from "@/components/skeleton"
 
 const POPULAR_CITIES = ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Garoua", "Kribi", "Buea", "Limbe"]
-const PROPERTY_TYPES = ["Tous", "maison", "appartement", "studio", "villa", "terrain", "bureau"]
+const PROPERTY_TYPES = ["Tous", "maison", "appartement", "studio", "chambre", "villa", "terrain", "bureau"]
 
 export function SearchView() {
   const router = useRouter()
@@ -24,11 +24,15 @@ export function SearchView() {
   const [showFilters, setShowFilters] = useState(false)
   const [showPanel, setShowPanel] = useState(true)
   const [selectedProperty, setSelectedProperty] = useState<any | null>(null)
+  const [aiMode, setAiMode] = useState(false)
+  const [aiResponse, setAiResponse] = useState<string | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
   const hasFetchedRef = useRef(false)
 
   const handleSearch = useCallback(async () => {
     setLoading(true)
     setSearched(true)
+    setAiResponse(null)
     try {
       const params: Record<string, string | number> = {}
       if (query.trim()) params.city = query.trim()
@@ -47,6 +51,26 @@ export function SearchView() {
     }
   }, [query, type, priceMin, priceMax, bedroomsMin])
 
+  const handleAiSearch = useCallback(async () => {
+    if (!query.trim()) return
+    setAiLoading(true)
+    setSearched(true)
+    setLoading(true)
+    setAiResponse(null)
+    try {
+      const json = await agentSearch(query.trim())
+      const data = json.data?.results || json.results || []
+      setResults(data)
+      setAiResponse(json.data?.response || json.response || null)
+    } catch (err: any) {
+      setResults([])
+      setAiResponse("Erreur lors de la recherche IA. Essayez la recherche avec filtres.")
+    } finally {
+      setAiLoading(false)
+      setLoading(false)
+    }
+  }, [query])
+
   // Fetch initial results once on mount
   useEffect(() => {
     if (hasFetchedRef.current) return
@@ -61,6 +85,14 @@ export function SearchView() {
       setShowPanel(true)
     }
   }, [results])
+
+  const formatPrice = (price: any) => {
+    const n = Number(price)
+    if (isNaN(n)) return ""
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M FCFA`
+    if (n >= 1000) return `${(n / 1000).toFixed(0)}k FCFA`
+    return `${n} FCFA`
+  }
 
   return (
     <div className="fixed inset-0 w-full h-full overflow-hidden">
@@ -82,20 +114,47 @@ export function SearchView() {
           </button>
 
           <div className="flex-1 max-w-2xl flex items-center gap-2 bg-white/90 backdrop-blur rounded-full px-4 py-2.5 shadow-lg">
-            <Search size={16} className="text-stone-500 shrink-0" />
+            {aiMode ? (
+              <Sparkles size={16} className="text-amber-500 shrink-0" />
+            ) : (
+              <Search size={16} className="text-stone-500 shrink-0" />
+            )}
             <input
-              className="flex-1 bg-transparent text-sm text-stone-800 placeholder:text-stone-400 outline-none"
-              placeholder="Rechercher par ville, quartier..."
+              className="flex-1 bg-transparent text-sm text-stone-800 placeholder:text-stone-400 outline-none min-w-0"
+              placeholder={aiMode ? "Décrivez votre bien idéal en langage naturel..." : "Rechercher par ville, quartier..."}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              onKeyDown={(e) => e.key === "Enter" && (aiMode ? handleAiSearch() : handleSearch())}
             />
             {query && (
-              <button onClick={() => { setQuery(""); }} className="text-stone-400 hover:text-stone-600">
+              <button onClick={() => { setQuery(""); setAiResponse(null); }} className="text-stone-400 hover:text-stone-600 shrink-0">
                 <X size={14} />
               </button>
             )}
+            {aiMode && (
+              <button
+                onClick={handleAiSearch}
+                disabled={aiLoading || !query.trim()}
+                className="shrink-0 p-1.5 rounded-full bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors"
+                title="Rechercher avec l'IA"
+              >
+                <Send size={14} />
+              </button>
+            )}
           </div>
+
+          {/* Mode toggle: IA / Filtres */}
+          <button
+            onClick={() => { setAiMode(!aiMode); setShowFilters(!aiMode ? false : showFilters); setAiResponse(null); }}
+            className={cn(
+              "flex items-center gap-1.5 text-sm font-semibold px-3 py-2.5 rounded-full transition-colors shadow-lg pointer-events-auto shrink-0",
+              aiMode ? "bg-amber-500 text-white" : "bg-white/90 backdrop-blur text-stone-700 hover:bg-white"
+            )}
+            title={aiMode ? "Mode IA activé" : "Activer la recherche IA"}
+          >
+            <Sparkles size={14} />
+            <span className="hidden sm:inline">IA</span>
+          </button>
 
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -108,6 +167,24 @@ export function SearchView() {
             <span className="hidden sm:inline">Filtres</span>
           </button>
         </div>
+
+        {/* AI Response banner */}
+        {aiResponse && (
+          <div className="mx-4 mt-2 max-w-2xl pointer-events-auto anim-fade-up">
+            <div className="p-4 rounded-2xl bg-white/95 backdrop-blur shadow-lg">
+              <div className="flex items-start gap-2">
+                <Sparkles size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-amber-600 mb-1">Assistant IA</p>
+                  <p className="text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">{aiResponse}</p>
+                </div>
+                <button onClick={() => setAiResponse(null)} className="text-stone-400 hover:text-stone-600 shrink-0">
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filters panel */}
         {showFilters && (
@@ -134,7 +211,7 @@ export function SearchView() {
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-stone-500 mb-1 block">Prix min</label>
+                  <label className="text-xs font-medium text-stone-500 mb-1 block">Prix min (FCFA)</label>
                   <input
                     type="number"
                     value={priceMin}
@@ -144,7 +221,7 @@ export function SearchView() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-stone-500 mb-1 block">Prix max</label>
+                  <label className="text-xs font-medium text-stone-500 mb-1 block">Prix max (FCFA)</label>
                   <input
                     type="number"
                     value={priceMax}
@@ -184,11 +261,13 @@ export function SearchView() {
       </div>
 
       {/* Loading indicator */}
-      {loading && (
+      {(loading || aiLoading) && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 backdrop-blur shadow-lg">
             <div className="w-4 h-4 border-2 border-stone-300 border-t-stone-800 rounded-full animate-spin" />
-            <span className="text-sm text-stone-700 font-medium">Recherche en cours...</span>
+            <span className="text-sm text-stone-700 font-medium">
+              {aiLoading ? "L'IA analyse votre demande..." : "Recherche en cours..."}
+            </span>
           </div>
         </div>
       )}
@@ -248,11 +327,22 @@ export function SearchView() {
                     )}
                   >
                     <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0">
-                      <img src={img} alt={ad.title} className="w-full h-full object-cover" />
+                      <img
+                        src={img}
+                        alt={ad.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const el = e.currentTarget
+                          if (!el.dataset.fb) {
+                            el.dataset.fb = "1"
+                            el.src = "/images/house-1.jpg"
+                          }
+                        }}
+                      />
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 overflow-hidden">
                       <p className="font-semibold text-stone-800 text-sm truncate">{ad.title}</p>
-                      <p className="text-xs text-stone-500 mt-0.5">
+                      <p className="text-xs text-stone-500 mt-0.5 truncate">
                         <MapPin size={10} className="inline mr-1" />
                         {[ad.district, ad.city].filter(Boolean).join(", ")}
                       </p>
@@ -260,8 +350,8 @@ export function SearchView() {
                         {ad.bedrooms != null && <span>{ad.bedrooms} ch.</span>}
                         {ad.bathrooms != null && <span>{ad.bathrooms} sdb</span>}
                       </div>
-                      <p className="text-sm font-bold text-stone-800 mt-1">
-                        {ad.price?.toLocaleString("fr-FR")} FCFA
+                      <p className="text-sm font-bold text-stone-800 mt-1 truncate">
+                        {formatPrice(ad.price)}
                       </p>
                     </div>
                   </div>

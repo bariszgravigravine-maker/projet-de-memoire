@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useRef, useEffect, useCallback, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, MoreVertical, Phone, Video, Search, Send, LayoutDashboard } from "lucide-react"
 import { UserChatComposer } from "@/components/user-chat-composer"
 import { Skeleton } from "@/components/skeleton"
@@ -40,8 +40,10 @@ function formatTime(dateStr: string) {
   return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
 }
 
-export default function MessagesPage() {
+function MessagesContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialConvId = searchParams.get("conversationId")
   const scrollRef = useRef<HTMLDivElement>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -75,7 +77,10 @@ export default function MessagesPage() {
       }))
       setConversations(mapped)
       setUnreadTotal(unreadRes.data?.count || 0)
-      if (mapped.length > 0 && !selectedId) {
+      // Si un conversationId est dans l'URL, le sélectionner en priorité
+      if (initialConvId) {
+        setSelectedId(initialConvId)
+      } else if (mapped.length > 0 && !selectedId) {
         setSelectedId(mapped[0].id)
       }
     } catch (err: any) {
@@ -83,7 +88,7 @@ export default function MessagesPage() {
     } finally {
       setLoadingConvs(false)
     }
-  }, [selectedId])
+  }, [selectedId, initialConvId])
 
   const fetchMessages = useCallback(async (convId: string) => {
     setLoadingMsgs(true)
@@ -359,5 +364,17 @@ export default function MessagesPage() {
         )}
       </main>
     </div>
+  )
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-screen flex items-center justify-center bg-stone-50">
+        <div className="animate-pulse bg-muted w-10 h-10 rounded-full" />
+      </div>
+    }>
+      <MessagesContent />
+    </Suspense>
   )
 }

@@ -7,7 +7,7 @@ import {
   MessageSquare, Share2, MoreHorizontal
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getAdDetail, contactAd } from "@/lib/api"
+import { getAdDetail, contactAd, openConversation, getToken } from "@/lib/api"
 import { Skeleton } from "@/components/skeleton"
 
 const FALLBACK_IMAGES = [
@@ -49,11 +49,37 @@ export default function AnnonceDetailPage() {
   }, [id])
 
   const handleContact = async () => {
+    // Vérifier si l'utilisateur est connecté
+    const token = getToken()
+    if (!token) {
+      router.push("/auth?redirect=/annonce/" + id)
+      return
+    }
+
+    if (!ad?.owner_id) {
+      alert("Impossible de contacter cet annonceur")
+      return
+    }
+
     try {
-      const res = await contactAd(id)
-      if (res.data?.phone) setShowPhone(true)
+      // Créer ou récupérer la conversation avec l'annonceur
+      const res = await openConversation(ad.owner_id)
+      const conv = res.data || res
+      const convId = conv.id || conv.conversation_id
+      if (convId) {
+        // Rediriger vers la messagerie avec la conversation sélectionnée
+        router.push(`/messages?conversationId=${convId}`)
+      } else {
+        // Fallback : aller à la liste des messages
+        router.push("/messages")
+      }
     } catch (err: any) {
-      alert(err.message || "Veuillez vous connecter pour contacter l'annonceur")
+      // Si l'API échoue, fallback : afficher le téléphone si disponible
+      if (ad.owner_phone) {
+        setShowPhone(true)
+      } else {
+        alert(err.message || "Veuillez vous connecter pour contacter l'annonceur")
+      }
     }
   }
 
@@ -109,6 +135,14 @@ export default function AnnonceDetailPage() {
   const ownerName = `${ad.owner_first_name || ""} ${ad.owner_last_name || ""}`.trim() || "Annonceur"
   const location = [ad.district, ad.city].filter(Boolean).join(", ") || "Cameroun"
 
+  const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    if (!img.dataset.fallback) {
+      img.dataset.fallback = "1"
+      img.src = FALLBACK_IMAGES[Math.floor(Math.random() * FALLBACK_IMAGES.length)]
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-0">
       {/* Header mobile */}
@@ -131,7 +165,7 @@ export default function AnnonceDetailPage() {
         {/* Images */}
         <div className="space-y-3">
           <div className="relative rounded-2xl overflow-hidden border border-border" style={{ height: 320 }}>
-            <img src={photos[activeImage]} alt={ad.title} className="w-full h-full object-cover" />
+            <img src={photos[activeImage]} alt={ad.title} className="w-full h-full object-cover" onError={handleImgError} />
           </div>
           {photos.length > 1 && (
             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -144,7 +178,7 @@ export default function AnnonceDetailPage() {
                     activeImage === i ? "border-foreground" : "border-transparent hover:border-border"
                   )}
                 >
-                  <img src={photo} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                  <img src={photo} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" onError={handleImgError} />
                 </button>
               ))}
             </div>

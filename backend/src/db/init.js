@@ -12,6 +12,7 @@ const SCHEMA_SQL = `
 -- =====================================================
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "unaccent";
 
 -- --- Utilisateurs ---
 CREATE TABLE IF NOT EXISTS users (

@@ -85,11 +85,11 @@ export const PropertyModel = {
       params.push(c.bedroomsMin);
     }
     if (c.city) {
-      conditions.push(`p.city ILIKE $${i++}`);
+      conditions.push(`unaccent(p.city) ILIKE unaccent($${i++})`);
       params.push(`%${c.city}%`);
     }
     if (c.district) {
-      conditions.push(`p.district ILIKE $${i++}`);
+      conditions.push(`unaccent(p.district) ILIKE unaccent($${i++})`);
       params.push(`%${c.district}%`);
     }
     if (c.bathroomsMin != null) {

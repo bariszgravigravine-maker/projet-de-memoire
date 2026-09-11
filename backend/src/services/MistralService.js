@@ -234,6 +234,77 @@ Ne renvoie aucun texte hors du JSON.`;
   },
 
   /**
+   * Réponse conversationnelle de l'agent IA après une recherche par image.
+   * Décrit d'abord ce que l'IA voit dans l'image, puis présente les biens trouvés.
+   */
+  async buildImageSearchResponse(imageDescription, features, results, criteria) {
+    const systemPrompt = `Tu es un agent immobilier virtuel au Cameroun. L'utilisateur t'a envoyé une image d'un bien immobilier.
+Tu as reçu :
+1. Une description détaillée de ce que l'IA voit dans l'image.
+2. Les caractéristiques extraites de l'image.
+3. Les résultats RÉELS de la recherche en base de données.
+
+STRUCTURE OBLIGATOIRE DE TA RÉPONSE :
+1. Commence par décrire ce que tu vois dans l'image en te basant sur la description fournie. Sois descriptif et naturel, comme si tu regardais l'image avec l'utilisateur. Mentionne le type de bien, le style, l'état, les pièces visibles, l'environnement, etc.
+2. Ensuite, fais une transition naturelle vers les propositions (ex: "D'après ce que je vois, voici les biens similaires disponibles :").
+3. Présente UNIQUEMENT les biens réellement trouvés dans les résultats, avec leurs informations exactes (titre, prix, ville, quartier, chambres).
+
+RÈGLES CRITIQUES :
+- Ne JAMAIS inventer ou lister des biens qui ne figurent pas dans les résultats fournis.
+- Si AUCUN bien n'a été trouvé, dis-le clairement après la description et propose d'élargir la recherche.
+- Sois concis, amical et honnête.
+- La description de l'image doit faire 3 à 5 phrases.`;
+
+    const resultsSummary = results.length === 0
+      ? 'Aucun bien ne correspond aux critères extraits de l\'image.'
+      : results.slice(0, 8).map(r =>
+          `- ${r.title} | ${r.price} FCFA | ${r.city}, ${r.district || 'quartier non précisé'} | ${r.bedrooms || 0} chambres`
+        ).join('\n');
+
+    const userContent = `Description de l'image par l'IA :
+${imageDescription}
+
+Caractéristiques extraites :
+- Type : ${features.property_type || 'non déterminé'}
+- Chambres estimées : ${features.estimated_bedrooms || '?'}
+- Douches/SDB : ${features.estimated_bathrooms || '?'}
+- État : ${features.condition || 'non déterminé'}
+- Style : ${features.style || 'non déterminé'}
+
+Résultats de recherche (${results.length} au total) :
+${resultsSummary}`;
+
+    try {
+      const res = await axios.post(config.mistral.apiUrl, {
+        model: config.mistral.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent },
+        ],
+        temperature: 0.5,
+        max_tokens: 1000,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${config.mistral.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 20000,
+      });
+      return res.data.choices[0].message.content.trim();
+    } catch (err) {
+      console.error('[Mistral] Erreur buildImageSearchResponse:', err.message);
+      // Fallback: description + résultats simples
+      let fallback = `Voici ce que je vois dans votre image :\n${imageDescription}\n\n`;
+      if (results.length === 0) {
+        fallback += `Je n'ai trouvé aucun bien correspondant à cette image dans notre base. Essayez avec d'autres critères.`;
+      } else {
+        fallback += `Voici les biens similaires disponibles :\n${resultsSummary}`;
+      }
+      return fallback;
+    }
+  },
+
+  /**
    * Réponse conversationnelle de l'agent IA après une recherche.
    */
   async buildSearchResponse(userMessage, results, criteria) {
