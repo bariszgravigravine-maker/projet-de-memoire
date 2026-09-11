@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+
+# Environment variables (NEVER commit secrets)
+.env
+.env.local
+.env.*local
+.env.development
+.env.production
+*.env
+
+# PostgreSQL portable data (ne pas pousser la base)
+pg15/
+*.zip
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Uploads temporaires
+uploads/
+tmp/
+
+# Devin plans (temporaires)
+.devin/plans/
+
+# Cache
+.cache/
+.eslintcache
+.turbo/
+
+# Test coverage
+coverage/
+
+# Misc
+*.pid
+*.seed

@@ -1,0 +1,298 @@
+"use client"
+
+import { useState, useRef } from "react"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, Upload, X, Plus, Home, Loader2, Sparkles } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { createAd, getToken, generateDescription } from "@/lib/api"
+
+const PROPERTY_TYPES = [
+  "maison", "appartement", "studio", "villa", "terrain",
+  "bureau", "magasin", "entrepôt", "hôtel", "résidence"
+]
+
+const CITIES = [
+  "Yaoundé", "Douala", "Bafoussam", "Bamenda", "Garoua",
+  "Maroua", "Buea", "Limbe", "Kribi", "Ebolowa", "Ngaoundéré", "Dschang"
+]
+
+export default function PublierAnnoncePage() {
+  const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [loading, setLoading] = useState(false)
+  const [generatingDesc, setGeneratingDesc] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [photos, setPhotos] = useState<string[]>([])
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    price: "",
+    type: "maison",
+    area: "",
+    bedrooms: "",
+    bathrooms: "",
+    address: "",
+    district: "",
+    city: "Yaoundé",
+  })
+
+  const token = typeof window !== "undefined" ? getToken() : null
+
+  const update = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }))
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+    Array.from(files).forEach((file) => {
+      if (!file.type.startsWith("image/")) return
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        setPhotos((prev) => [...prev, event.target?.result as string])
+      }
+      reader.readAsDataURL(file)
+    })
+    e.target.value = ""
+  }
+
+  const removePhoto = (idx: number) => setPhotos((prev) => prev.filter((_, i) => i !== idx))
+
+  const handleGenerateDescription = async () => {
+    setGeneratingDesc(true)
+    try {
+      const data: any = {
+        type: form.type,
+        city: form.city,
+      }
+      if (form.area) data.area = Number(form.area)
+      if (form.bedrooms) data.bedrooms = Number(form.bedrooms)
+      if (form.bathrooms) data.bathrooms = Number(form.bathrooms)
+      if (form.district) data.district = form.district
+      if (form.price) data.price = Number(form.price)
+
+      const res = await generateDescription(data)
+      const desc = res.data?.description || res.description || ""
+      if (desc) update("description", desc)
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de la génération")
+    } finally {
+      setGeneratingDesc(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!token) {
+      setError("Veuillez vous connecter pour publier une annonce.")
+      return
+    }
+    if (!form.title || !form.price || !form.type || !form.city) {
+      setError("Titre, prix, type et ville sont obligatoires.")
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      await createAd({
+        title: form.title,
+        description: form.description,
+        price: Number(form.price),
+        type: form.type,
+        area: form.area ? Number(form.area) : undefined,
+        bedrooms: form.bedrooms ? Number(form.bedrooms) : undefined,
+        bathrooms: form.bathrooms ? Number(form.bathrooms) : undefined,
+        address: form.address,
+        district: form.district,
+        city: form.city,
+        photos,
+      })
+      router.push("/dashboard")
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de la publication")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background pb-24">
+      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
+        <button onClick={() => router.push("/dashboard")} className="p-2 rounded-full hover:bg-muted transition-colors">
+          <ArrowLeft className="w-5 h-5 text-foreground" />
+        </button>
+        <h1 className="text-lg font-bold text-foreground">Publier une annonce</h1>
+      </header>
+
+      <main className="max-w-2xl mx-auto px-4 py-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {error && (
+            <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Titre de l&apos;annonce</label>
+            <input
+              value={form.title}
+              onChange={(e) => update("title", e.target.value)}
+              placeholder="Ex: Villa moderne à Bastos"
+              className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-sm font-medium text-foreground">Description</label>
+              <button
+                type="button"
+                onClick={handleGenerateDescription}
+                disabled={generatingDesc}
+                className="flex items-center gap-1.5 text-xs font-medium text-foreground hover:bg-muted px-2 py-1 rounded-full transition-colors disabled:opacity-50"
+              >
+                {generatingDesc ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                Générer avec IA
+              </button>
+            </div>
+            <textarea
+              value={form.description}
+              onChange={(e) => update("description", e.target.value)}
+              rows={4}
+              placeholder="Décrivez le bien..."
+              className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Prix (FCFA)</label>
+              <input
+                type="number"
+                value={form.price}
+                onChange={(e) => update("price", e.target.value)}
+                placeholder="250000"
+                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Type de bien</label>
+              <select
+                value={form.type}
+                onChange={(e) => update("type", e.target.value)}
+                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {PROPERTY_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Superficie (m²)</label>
+              <input
+                type="number"
+                value={form.area}
+                onChange={(e) => update("area", e.target.value)}
+                placeholder="180"
+                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Chambres</label>
+              <input
+                type="number"
+                value={form.bedrooms}
+                onChange={(e) => update("bedrooms", e.target.value)}
+                placeholder="4"
+                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Douches</label>
+              <input
+                type="number"
+                value={form.bathrooms}
+                onChange={(e) => update("bathrooms", e.target.value)}
+                placeholder="2"
+                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Adresse</label>
+              <input
+                value={form.address}
+                onChange={(e) => update("address", e.target.value)}
+                placeholder="Rue, quartier..."
+                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Quartier</label>
+              <input
+                value={form.district}
+                onChange={(e) => update("district", e.target.value)}
+                placeholder="Bastos"
+                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Ville</label>
+            <select
+              value={form.city}
+              onChange={(e) => update("city", e.target.value)}
+              className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {CITIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Photos */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">Photos</label>
+            <div className="flex flex-wrap gap-3">
+              {photos.map((photo, i) => (
+                <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-border">
+                  <img src={photo} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    className="absolute top-1 right-1 w-6 h-6 bg-black/70 text-white rounded-full flex items-center justify-center"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-24 h-24 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
+              >
+                <Plus className="w-6 h-6 mb-1" />
+                <span className="text-[10px]">Ajouter</span>
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageSelect} className="hidden" />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full h-12 rounded-full bg-foreground text-background font-semibold text-sm hover:bg-foreground/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Home className="w-4 h-4" />}
+            {loading ? "Publication..." : "Publier l'annonce"}
+          </button>
+        </form>
+      </main>
+    </div>
+  )
+}
