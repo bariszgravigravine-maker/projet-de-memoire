@@ -95,6 +95,7 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
       setMapReady(true)
       try {
         // Couche 3D des bâtiments - s'affiche au zoom 14+
+        // Style inspiré de leafmap (lightgray -> royalblue -> lightblue)
         map.addLayer({
           id: "3d-buildings",
           source: "buildings",
@@ -106,11 +107,9 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
               "interpolate",
               ["linear"],
               ["get", "render_height"],
-              0, "#d4d4d4",
-              20, "#c0c0c0",
-              50, "#a8a8a8",
-              100, "#909090",
-              200, "#787878",
+              0, "lightgray",
+              200, "royalblue",
+              400, "lightblue",
             ],
             "fill-extrusion-height": [
               "interpolate",
@@ -126,7 +125,24 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
               14, 0,
               15, ["get", "render_min_height"],
             ],
-            "fill-extrusion-opacity": 0.8,
+            "fill-extrusion-opacity": 0.85,
+          },
+        })
+
+        // Couche de contour des bâtiments pour plus de relief
+        map.addLayer({
+          id: "3d-buildings-outline",
+          source: "buildings",
+          "source-layer": "building",
+          type: "line",
+          minzoom: 14,
+          paint: {
+            "line-color": "#1e3a5f",
+            "line-width": 0.5,
+            "line-opacity": 0.4,
+          },
+          layout: {
+            "line-join": "round",
           },
         })
       } catch (e: any) {
