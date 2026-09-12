@@ -50,18 +50,22 @@ global.io = io;
 
 // --- Démarrage ---
 async function start() {
-  // Vérifie la connexion DB
-  try {
-    await pool.query('SELECT 1');
-    console.log('[DB] Connexion PostgreSQL établie.');
-  } catch (err) {
-    console.error('[DB] Impossible de se connecter à PostgreSQL:', err.message);
-    console.error('[DB] Vérifiez que PostgreSQL est démarré et que la base "immo_db" existe.');
-    console.error('[DB] Lancez "npm run db:init" pour créer le schéma.');
-  }
+  // Vérifie la connexion DB de manière asynchrone et non-bloquante.
+  // Le serveur doit démarrer même si la base n'est pas encore initialisée.
+  pool
+    .query('SELECT 1')
+    .then(() => {
+      console.log('[DB] Connexion PostgreSQL établie.');
+    })
+    .catch((err) => {
+      console.warn('[DB] Impossible de se connecter à PostgreSQL:', err.message);
+      console.warn('[DB] Vérifiez que PostgreSQL est démarré et que la base "immo_db" existe.');
+      console.warn('[DB] Lancez "npm run db:init" pour créer le schéma.');
+    });
 
   server.listen(config.port, () => {
     console.log(`[Server] Backend démarré sur http://localhost:${config.port}`);
+    console.log(`[Server] Prêt à recevoir des connexions.`);
     console.log(`[Server] Environnement: ${config.env}`);
     console.log(`[Server] Mistral AI: ${config.mistral.apiKey ? 'configuré' : 'NON configuré (clé manquante)'}`);
   });
