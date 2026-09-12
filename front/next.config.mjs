@@ -7,6 +7,18 @@ const nextConfig = {
     unoptimized: true,
   },
   allowedDevOrigins: ["127.0.0.1", "localhost"],
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://185.98.128.123:5001/api/:path*',
+      },
+      {
+        source: '/socket.io/:path*',
+        destination: 'http://185.98.128.123:5001/socket.io/:path*',
+      },
+    ];
+  },
 }
 
 export default nextConfig
