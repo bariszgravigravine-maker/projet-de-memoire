@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { usePathname } from "next/navigation"
 import Image from "next/image"
 import {
   MapPin, Bell, Search, Heart, User, Home,
@@ -39,13 +39,12 @@ const PATH_TO_NAV: Record<string, NavItem> = {
 }
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
   const pathname = usePathname() || "/dashboard"
   const activeNav = PATH_TO_NAV[pathname] || "home"
   const [searchQuery, setSearchQuery] = useState("")
 
   const handleNavClick = (nav: NavItem) => {
-    router.push(NAV_ROUTES[nav])
+    window.location.href = NAV_ROUTES[nav]
   }
 
   const isSearchPage = pathname === "/dashboard/search"
@@ -89,7 +88,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => router.push("/notifications")}
+              onClick={() => window.location.href = "/notifications"}
               className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors relative"
               title="Notifications"
             >
@@ -101,28 +100,28 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               )}
             </button>
             <button
-              onClick={() => router.push("/criteres")}
+              onClick={() => window.location.href = "/criteres"}
               className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
               title="Critères de recherche"
             >
               <Filter size={18} className="text-foreground" />
             </button>
             <button
-              onClick={() => router.push("/estimation")}
+              onClick={() => window.location.href = "/estimation"}
               className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
               title="Estimation IA"
             >
               <TrendingUp size={18} className="text-foreground" />
             </button>
             <button
-              onClick={() => router.push("/admin")}
+              onClick={() => window.location.href = "/admin"}
               className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
               title="Administration"
             >
               <Shield size={18} className="text-foreground" />
             </button>
             <button
-              onClick={() => router.push("/dashboard/profile")}
+              onClick={() => window.location.href = "/dashboard/profile"}
               className="w-9 h-9 rounded-full overflow-hidden border-2 border-foreground/10 hover:opacity-80 transition-opacity"
             >
               <Image src="/images/agent.jpg" alt="Profile" width={36} height={36} className="object-cover w-full h-full" />
@@ -196,14 +195,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         })}
         <div className="w-6 h-px bg-border my-1" />
         <button
-          onClick={() => router.push("/mes-annonces")}
+          onClick={() => window.location.href = "/mes-annonces"}
           className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           title="Mes annonces"
         >
           <Home size={18} />
         </button>
         <button
-          onClick={() => router.push("/annonce/publier")}
+          onClick={() => window.location.href = "/annonce/publier"}
           className="w-10 h-10 flex items-center justify-center rounded-xl bg-foreground text-background hover:bg-foreground/90 transition-colors"
           title="Publier une annonce"
         >
