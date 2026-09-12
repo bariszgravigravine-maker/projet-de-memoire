@@ -35,38 +35,7 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
     try {
       map = new maplibregl.Map({
         container: mapContainer.current,
-        style: {
-          version: 8,
-          sources: {
-            "osm-tiles": {
-              type: "raster",
-              tiles: [
-                "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
-              ],
-              tileSize: 256,
-              attribution: "&copy; OpenStreetMap contributors",
-            },
-            "buildings": {
-              type: "vector",
-              tiles: [
-                "https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf",
-              ],
-              maxzoom: 14,
-              attribution: "&copy; OpenFreeMap, OpenMapTiles",
-            },
-          },
-          layers: [
-            {
-              id: "osm-layer",
-              type: "raster",
-              source: "osm-tiles",
-              minzoom: 0,
-              maxzoom: 19,
-            },
-          ],
-        },
+        style: `https://api.maptiler.com/maps/streets/style.json?key=pZbOuTTgEMlz7km8AJvW`,
         center: [11.5167, 3.8667], // Centre du Cameroun
         zoom: 11, // Zoom ville au lieu de pays
         pitch: 60, // Vue 3D inclinée
@@ -94,11 +63,11 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
     map.on("load", () => {
       setMapReady(true)
       try {
-        // Couche 3D des bâtiments - s'affiche au zoom 14+
+        // Couche 3D des bâtiments avec MapTiler - s'affiche au zoom 14+
         // Style inspiré de leafmap (lightgray -> royalblue -> lightblue)
         map.addLayer({
           id: "3d-buildings",
-          source: "buildings",
+          source: "openmaptiles",
           "source-layer": "building",
           type: "fill-extrusion",
           minzoom: 14,
@@ -132,7 +101,7 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
         // Couche de contour des bâtiments pour plus de relief
         map.addLayer({
           id: "3d-buildings-outline",
-          source: "buildings",
+          source: "openmaptiles",
           "source-layer": "building",
           type: "line",
           minzoom: 14,
