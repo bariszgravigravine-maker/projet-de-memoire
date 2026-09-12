@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AIChatFab } from '@/components/ai-chat-fab'
+import { RealtimeProvider } from '@/components/realtime-provider'
 import { ServiceWorkerRegistration } from './service-worker-registration'
 import './globals.css'
 
@@ -56,8 +57,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} font-sans antialiased`}>
-        {children}
-        <AIChatFab />
+        <RealtimeProvider>
+          {children}
+          <AIChatFab />
+        </RealtimeProvider>
         <Analytics />
         <ServiceWorkerRegistration />
       </body>

@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils"
 import { NestFindLogo } from "@/components/nestfind-logo"
 import { countUnreadMessages, listNotifications } from "@/lib/api"
+import { useRealtime } from "@/components/realtime-provider"
 
 type NavItem = "home" | "liked" | "search" | "messages" | "profile"
 
@@ -48,8 +49,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   const isSearchPage = pathname === "/dashboard/search"
-  const [unreadMsgs, setUnreadMsgs] = useState(0)
-  const [unreadNotifs, setUnreadNotifs] = useState(0)
+  const { unreadMessages: rtMessages, unreadNotifs: rtNotifs, setUnreadMessages, setUnreadNotifs } = useRealtime()
 
   useEffect(() => {
     if (isSearchPage) return
@@ -61,7 +61,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           listNotifications().catch(() => ({ data: [] })),
         ])
         if (!mounted) return
-        setUnreadMsgs(msgRes.data?.count || 0)
+        setUnreadMessages(msgRes.data?.count || 0)
         const notifs = notifRes.data || notifRes || []
         const unread = Array.isArray(notifs) ? notifs.filter((n: any) => !n.is_read).length : 0
         setUnreadNotifs(unread)
@@ -72,7 +72,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     loadBadges()
     const interval = setInterval(loadBadges, 30000)
     return () => { mounted = false; clearInterval(interval) }
-  }, [isSearchPage])
+  }, [isSearchPage, setUnreadMessages, setUnreadNotifs])
 
   return (
     <div className="w-full min-h-screen bg-background flex flex-col" style={{ fontFamily: "var(--font-inter, system-ui, sans-serif)" }}>
@@ -94,9 +94,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               title="Notifications"
             >
               <Bell size={18} className="text-foreground" />
-              {unreadNotifs > 0 && (
+              {rtNotifs > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full">
-                  {unreadNotifs > 99 ? "99+" : unreadNotifs}
+                  {rtNotifs > 99 ? "99+" : rtNotifs}
                 </span>
               )}
             </button>
@@ -145,7 +145,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div className="sticky bottom-0 z-20 lg:hidden bg-background/95 backdrop-blur border-t border-border">
         <div className="flex items-center justify-around py-2 px-4">
           {NAV_ITEMS.map(({ id, icon: Icon, label }) => {
-            const badge = id === "messages" ? unreadMsgs : id === "liked" ? 3 : 0
+            const badge = id === "messages" ? rtMessages : id === "liked" ? 3 : 0
             return (
             <button
               key={id}
@@ -175,7 +175,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       {!isSearchPage && (
       <nav className="fixed left-0 top-1/2 -translate-y-1/2 hidden xl:flex flex-col items-center gap-2 bg-background/80 backdrop-blur border border-border rounded-2xl p-2 ml-3 shadow-lg z-20">
         {NAV_ITEMS.map(({ id, icon: Icon }) => {
-          const badge = id === "messages" ? unreadMsgs : id === "liked" ? 3 : 0
+          const badge = id === "messages" ? rtMessages : id === "liked" ? 3 : 0
           return (
           <button
             key={id}

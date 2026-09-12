@@ -100,6 +100,22 @@ export function PropertyPackageCard({
         zIndex: isShaking ? 100 : "auto",
       }}
     >
+      {/* Like button - moved ABOVE the card so it's never hidden */}
+      {onLike && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onLike(e)
+          }}
+          className="absolute -top-3 right-2 z-50 w-9 h-9 flex items-center justify-center bg-background/90 backdrop-blur-sm rounded-full shadow-md border border-border transition-transform hover:scale-110"
+        >
+          <Heart
+            size={16}
+            className={liked ? "fill-red-500 text-red-500" : "text-foreground/60"}
+          />
+        </button>
+      )}
+
       <div
         className={cn("relative mx-auto", cardWidth)}
         style={{ perspective: "1200px" }}
@@ -119,22 +135,6 @@ export function PropertyPackageCard({
             transform: isActive ? "rotateX(15deg)" : "rotateX(0deg)",
           }}
         >
-          {/* Like button */}
-          {onLike && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onLike(e)
-              }}
-              className="absolute top-3 right-3 z-30 w-8 h-8 flex items-center justify-center bg-background/85 backdrop-blur-sm rounded-full shadow-sm transition-transform hover:scale-110"
-            >
-              <Heart
-                size={14}
-                className={liked ? "fill-red-500 text-red-500" : "text-foreground/60"}
-              />
-            </button>
-          )}
-
           {/* Property type badge */}
           {propertyType && (
             <div className="absolute top-3 left-3 z-30 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-background/85 backdrop-blur-sm text-foreground border border-border">
@@ -257,6 +257,34 @@ export function PropertyPackageCard({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Owner profile circle - below the card */}
+        <div className="flex items-center justify-between mt-2.5 px-1">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full overflow-hidden border border-border bg-muted flex-shrink-0">
+              {ad.owner_photo_url || ad.profile_photo_url ? (
+                <img
+                  src={ad.owner_photo_url || ad.profile_photo_url}
+                  alt={ad.owner_name || ad.agent_name || "Agent"}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-muted text-[10px] font-bold text-muted-foreground">
+                  {(ad.owner_name || ad.agent_name || "A").charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
+            <span className="text-[11px] text-muted-foreground font-medium truncate max-w-[100px]">
+              {ad.owner_name || ad.agent_name || "Agent"}
+            </span>
+          </div>
+          {!compact && viewCount > 0 && (
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Eye size={11} />
+              {viewCount}
+            </span>
+          )}
         </div>
       </div>
     </div>
