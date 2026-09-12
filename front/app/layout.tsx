@@ -1,7 +1,8 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AIChatFab } from '@/components/ai-chat-fab'
+import { ServiceWorkerRegistration } from './service-worker-registration'
 import './globals.css'
 
 const inter = Inter({
@@ -14,6 +15,12 @@ export const metadata: Metadata = {
   title: 'NestFind – Trouvez votre bien le plus rapidement',
   description: 'Parcourez les biens immobiliers intuitivement, sans le tracas d\'organiser une visite.',
   generator: 'v0.app',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'NestFind',
+  },
   icons: {
     icon: [
       {
@@ -33,6 +40,13 @@ export const metadata: Metadata = {
   },
 }
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#000000' },
+  ],
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -44,6 +58,7 @@ export default function RootLayout({
         {children}
         <AIChatFab />
         <Analytics />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   )
