@@ -9,6 +9,7 @@ import { swaggerOptions } from './config/swagger.js';
 import routes from './routes/index.js';
 import { globalLimiter } from './middlewares/rateLimit.js';
 import { errorHandler } from './middlewares/errorHandler.js';
+import { pool } from './config/db.js';
 
 /**
  * Application Express — architecture MVC.
@@ -33,6 +34,16 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 app.get('/api/docs.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
+});
+
+// --- Healthcheck simple pour la vérification de déploiement (curl /health) ---
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok' });
+  } catch (err) {
+    res.json({ status: 'degraded', db: 'disconnected' });
+  }
 });
 
 // --- Routes API ---
