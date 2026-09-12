@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Search, Heart, BedDouble, Bath, MapPin, SlidersHorizontal, Plus, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getAds, getRecommendations } from "@/lib/api"
+import { getAds, getRecommendations, addFavorite, removeFavorite, listFavorites } from "@/lib/api"
 import { SkeletonGrid } from "@/components/skeleton"
 import { PropertyPackageCard } from "@/components/property-package-card"
 
@@ -66,14 +66,48 @@ export function DashboardHome() {
     fetchRecommendations()
   }, [fetchAds, fetchRecommendations])
 
-  const toggleLike = (id: string, e?: React.MouseEvent) => {
+  // Load existing favorites on mount
+  useEffect(() => {
+    async function loadFavorites() {
+      try {
+        const json = await listFavorites()
+        const favs = json.data || json || []
+        if (Array.isArray(favs)) {
+          setLikedAds(new Set(favs.map((f: any) => f.ad_id || f.id)))
+        }
+      } catch {
+        // User might not be logged in
+      }
+    }
+    loadFavorites()
+  }, [])
+
+  const toggleLike = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation()
+    const wasLiked = likedAds.has(id)
+    // Optimistic UI update
     setLikedAds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
+    // Call API
+    try {
+      if (wasLiked) {
+        await removeFavorite(id)
+      } else {
+        await addFavorite(id)
+      }
+    } catch (err) {
+      // Revert on error
+      setLikedAds((prev) => {
+        const next = new Set(prev)
+        if (wasLiked) next.add(id)
+        else next.delete(id)
+        return next
+      })
+    }
   }
 
   const formatLocation = (ad: any) => {

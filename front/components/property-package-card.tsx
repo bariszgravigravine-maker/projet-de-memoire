@@ -258,34 +258,6 @@ export function PropertyPackageCard({
             </div>
           </div>
         </div>
-
-        {/* Owner profile circle - below the card */}
-        <div className="flex items-center justify-between mt-2.5 px-1">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full overflow-hidden border border-border bg-muted flex-shrink-0">
-              {ad.owner_photo_url || ad.profile_photo_url ? (
-                <img
-                  src={ad.owner_photo_url || ad.profile_photo_url}
-                  alt={ad.owner_name || ad.agent_name || "Agent"}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-muted text-[10px] font-bold text-muted-foreground">
-                  {(ad.owner_name || ad.agent_name || "A").charAt(0).toUpperCase()}
-                </div>
-              )}
-            </div>
-            <span className="text-[11px] text-muted-foreground font-medium truncate max-w-[100px]">
-              {ad.owner_name || ad.agent_name || "Agent"}
-            </span>
-          </div>
-          {!compact && viewCount > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <Eye size={11} />
-              {viewCount}
-            </span>
-          )}
-        </div>
       </div>
     </div>
   )
