@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { MapPin, BedDouble, Bath, Heart, MoreVertical, Eye } from "lucide-react"
+import confetti from "canvas-confetti"
 import { cn } from "@/lib/utils"
 
 const FALLBACK_IMAGES = [
@@ -106,6 +107,44 @@ export function PropertyPackageCard({
           onClick={(e) => {
             e.stopPropagation()
             onLike(e)
+
+            // Confetti effect on like (only when adding to favorites)
+            if (!liked) {
+              const rect = e.currentTarget.getBoundingClientRect()
+              const x = (rect.left + rect.width / 2) / window.innerWidth
+              const y = (rect.top + rect.height / 2) / window.innerHeight
+
+              // Heart-colored confetti burst
+              const colors = ["#ef4444", "#f87171", "#fca5a5", "#fecaca", "#ffffff"]
+              confetti({
+                particleCount: 30,
+                spread: 45,
+                origin: { x, y },
+                colors,
+                startVelocity: 25,
+                gravity: 0.6,
+                scalar: 0.8,
+                ticks: 150,
+                shapes: ["circle"],
+                disableForReducedMotion: true,
+              })
+
+              // Second smaller burst
+              setTimeout(() => {
+                confetti({
+                  particleCount: 15,
+                  spread: 60,
+                  origin: { x, y: y - 0.05 },
+                  colors,
+                  startVelocity: 15,
+                  gravity: 0.5,
+                  scalar: 0.6,
+                  ticks: 120,
+                  shapes: ["circle"],
+                  disableForReducedMotion: true,
+                })
+              }, 100)
+            }
           }}
           className="absolute -top-3 right-2 z-50 w-9 h-9 flex items-center justify-center bg-background/90 backdrop-blur-sm rounded-full shadow-md border border-border transition-transform hover:scale-110"
         >
