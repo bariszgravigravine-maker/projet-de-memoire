@@ -5,7 +5,6 @@ const CACHE_PATTERNS = [
   /\/images\//,
   /\/logo/,
   /\/icon/,
-  /\/manifest\.json$/,
   /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
   /\.(?:css|woff2?|ttf|eot)$/,
 ];
@@ -46,6 +45,9 @@ self.addEventListener('fetch', (event) => {
   // Ne pas intercepter _vercel internals
   if (url.pathname.startsWith('/_vercel/') || url.pathname.startsWith('/_next/')) return;
 
+  // Ne pas intercepter manifest.json (souvent sujet a redirection SSO)
+  if (url.pathname.endsWith('/manifest.json')) return;
+
   // Verifier si l'URL correspond a un pattern cacheable
   const shouldCache = CACHE_PATTERNS.some((pattern) => pattern.test(url.pathname));
 
@@ -53,19 +55,27 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.match(request).then((cached) => {
-      return (
-        cached ||
-        fetch(request).then((networkResponse) => {
+      if (cached) return cached;
+
+      return fetch(request)
+        .then((networkResponse) => {
           // Mettre en cache uniquement les reponses valides (200)
           if (networkResponse && networkResponse.status === 200) {
             const responseClone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
+              cache.put(request, responseClone).catch(() => {});
             });
           }
           return networkResponse;
-        }).catch(() => cached)
-      );
+        })
+        .catch(() => {
+          // En cas d erreur reseau, retourner une reponse 503 si rien en cache
+          return new Response('Ressource indisponible hors ligne', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain' },
+          });
+        });
     })
   );
 });
