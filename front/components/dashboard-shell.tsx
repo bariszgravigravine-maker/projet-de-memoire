@@ -78,7 +78,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* ── Top Nav (persistent, hidden on search full-screen) ── */}
       {!isSearchPage && (
       <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border anim-slide-down">
-        <div className="max-w-screen-xl mx-auto flex items-center justify-between px-6 py-3">
+        <div className="max-w-screen-xl mx-auto flex items-center justify-between px-4 sm:px-6 py-3">
           <NestFindLogo size="md" />
 
           <div className="hidden sm:flex items-center gap-1.5 bg-muted rounded-full px-3 py-1.5">
@@ -86,7 +86,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <span className="text-[12px] text-muted-foreground font-medium">Elgin St. Celina, Delaware</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={() => window.location.href = "/notifications"}
               className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors relative"
@@ -101,21 +101,21 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             </button>
             <button
               onClick={() => window.location.href = "/criteres"}
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+              className="hidden sm:flex w-9 h-9 items-center justify-center rounded-full hover:bg-muted transition-colors"
               title="Critères de recherche"
             >
               <Filter size={18} className="text-foreground" />
             </button>
             <button
               onClick={() => window.location.href = "/estimation"}
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+              className="hidden md:flex w-9 h-9 items-center justify-center rounded-full hover:bg-muted transition-colors"
               title="Estimation IA"
             >
               <TrendingUp size={18} className="text-foreground" />
             </button>
             <button
               onClick={() => window.location.href = "/admin"}
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+              className="hidden md:flex w-9 h-9 items-center justify-center rounded-full hover:bg-muted transition-colors"
               title="Administration"
             >
               <Shield size={18} className="text-foreground" />
@@ -134,14 +134,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* ── Main content area ── */}
       <main className={cn(
         "max-w-screen-xl mx-auto w-full flex flex-col flex-1 relative",
-        pathname === "/dashboard/search" ? "p-0" : "px-6 py-6 gap-6"
+        pathname === "/dashboard/search" ? "p-0" : "px-4 py-4 sm:px-6 sm:py-6 xl:pl-20 gap-4 sm:gap-6"
       )}>
         {children}
       </main>
 
       {/* ── Bottom Nav (mobile web view, hidden on search) ── */}
       {!isSearchPage && (
-      <div className="sticky bottom-0 z-20 lg:hidden bg-background/95 backdrop-blur border-t border-border">
+      <div className="sticky bottom-0 z-20 xl:hidden bg-background/95 backdrop-blur border-t border-border">
         <div className="flex items-center justify-around py-2 px-4">
           {NAV_ITEMS.map(({ id, icon: Icon, label }) => {
             const badge = id === "messages" ? rtMessages : id === "liked" ? 3 : 0
