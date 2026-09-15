@@ -2,32 +2,22 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
-import { Heart, BedDouble, Bath, MapPin, Search } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Heart, MapPin, Search } from "lucide-react"
 import { listFavorites, removeFavorite } from "@/lib/api"
 import { SkeletonGrid } from "@/components/skeleton"
+import { PropertyPackageCard } from "@/components/property-package-card"
 
-const FALLBACK_IMAGES = [
-  "/images/house-1.jpg",
-  "/images/house-2.jpg",
-  "/images/house-3.jpg",
-  "/images/house-4.jpg",
-  "/images/house-5.jpg",
-  "/images/house-6.jpg",
-]
-
-function fallbackImage(index: number) {
-  return FALLBACK_IMAGES[index % FALLBACK_IMAGES.length]
+const TYPE_LABELS: Record<string, string> = {
+  maison: "Maisons",
+  appartement: "Appartements",
+  studio: "Studios",
+  villa: "Villas",
+  terrain: "Terrains",
+  bureau: "Bureaux",
+  magasin: "Magasins",
 }
 
-function getPropertyImage(fav: any, index: number) {
-  if (fav.photos && fav.photos.length > 0) {
-    const url = fav.photos[0].url || fav.photos[0]
-    if (url) return url
-  }
-  return fallbackImage(index)
-}
+const TYPE_ORDER = ["maison", "appartement", "studio", "villa", "terrain", "bureau", "magasin"]
 
 export function SavedView() {
   const router = useRouter()
@@ -82,15 +72,21 @@ export function SavedView() {
     }
   }
 
-  const formatLocation = (fav: any) => {
-    const parts = [fav.district, fav.city].filter(Boolean)
-    return parts.length ? parts.join(", ") : "Cameroun"
-  }
+  // Group favorites by property type
+  const groupedFavs = (() => {
+    const groups: Record<string, any[]> = {}
+    for (const fav of filtered) {
+      const type = fav.property_type || "autre"
+      if (!groups[type]) groups[type] = []
+      groups[type].push(fav)
+    }
+    return groups
+  })()
 
-  const formatPrice = (price: any) => {
-    if (!price) return "N/A"
-    return Number(price).toLocaleString("fr-FR")
-  }
+  const activeTypes = TYPE_ORDER.filter(type => groupedFavs[type]?.length > 0)
+  const otherTypes = Object.keys(groupedFavs).filter(t => !TYPE_ORDER.includes(t) && t !== "autre")
+  const allSections = [...activeTypes, ...otherTypes]
+  if (groupedFavs["autre"]?.length > 0) allSections.push("autre")
 
   return (
     <div className="flex flex-col gap-6 anim-fade-up">
@@ -146,84 +142,42 @@ export function SavedView() {
         </div>
       )}
 
+      {/* Sections by type — Gallery style cards */}
       {!loading && !error && filtered.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((fav, i) => {
-            const adId = fav.ad_id || fav.id
-            const img = getPropertyImage(fav, i)
-            return (
-              <div
-                key={adId}
-                onClick={() => router.push(`/annonce/${adId}`)}
-                className="group rounded-2xl overflow-hidden bg-card border border-border cursor-pointer anim-fade-up"
-                style={{ animationDelay: `${i * 55}ms`, transition: "transform 0.24s ease, box-shadow 0.24s ease" }}
-                onMouseEnter={e => {
-                  ;(e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"
-                  ;(e.currentTarget as HTMLDivElement).style.boxShadow = "0 12px 32px rgba(0,0,0,0.12)"
-                }}
-                onMouseLeave={e => {
-                  ;(e.currentTarget as HTMLDivElement).style.transform = "translateY(0)"
-                  ;(e.currentTarget as HTMLDivElement).style.boxShadow = "none"
-                }}
-              >
-                <div className="relative overflow-hidden" style={{ height: 176 }}>
-                  <Image
-                    src={img}
-                    alt={fav.title || "Bien immobilier"}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 400px"
-                    className="object-cover transition-transform group-hover:scale-105"
-                  />
-                  {/* Remove button */}
-                  <button
-                    onClick={(e) => handleRemove(fav, e)}
-                    className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-white/85 backdrop-blur-sm rounded-full shadow-sm transition-transform hover:scale-110 z-10"
-                  >
-                    <Heart size={14} className="fill-red-500 text-red-500" />
-                  </button>
-                  {fav.property_type && (
-                    <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 rounded-full">
-                      <span>{fav.property_type}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="p-3.5">
-                  <div className="flex items-start justify-between">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13.5px] font-bold text-foreground leading-tight truncate">{fav.title || "Bien immobilier"}</p>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <MapPin size={10} className="text-muted-foreground shrink-0" />
-                        <span className="text-[11px] text-muted-foreground truncate">{formatLocation(fav)}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 mt-2.5 text-[11px] text-muted-foreground">
-                    {fav.bedrooms != null && (
-                      <span className="flex items-center gap-1"><BedDouble size={12} />{fav.bedrooms} ch.</span>
-                    )}
-                    {fav.bathrooms != null && (
-                      <span className="flex items-center gap-1"><Bath size={12} />{fav.bathrooms} sdb</span>
-                    )}
-                    {fav.area && (
-                      <span className="flex items-center gap-1">{fav.area} m²</span>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between mt-3">
-                    <span className="text-[14px] font-bold text-foreground">
-                      {formatPrice(fav.price)}
-                      <span className="text-[11px] font-normal text-muted-foreground ml-1">FCFA{fav.transaction_type === "location" ? "/mois" : ""}</span>
-                    </span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); router.push(`/annonce/${adId}`) }}
-                      className="bg-foreground text-background text-[11px] font-semibold px-3 py-1.5 rounded-full hover:bg-foreground/90 transition-colors"
-                    >
-                      Détails
-                    </button>
-                  </div>
+        <div className="flex flex-col gap-12">
+          {allSections.map((type, sectionIdx) => (
+            <div key={type} className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-[16px] font-bold text-foreground">
+                    {TYPE_LABELS[type] || type.charAt(0).toUpperCase() + type.slice(1)}
+                  </h3>
+                  <span className="text-[12px] font-normal text-muted-foreground">
+                    {groupedFavs[type].length} {groupedFavs[type].length > 1 ? "favoris" : "favori"}
+                  </span>
                 </div>
               </div>
-            )
-          })}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, 288px)",
+                  gap: "24px",
+                  justifyContent: "center",
+                  width: "100%",
+                }}
+              >
+                {groupedFavs[type].map((fav, i) => (
+                  <PropertyPackageCard
+                    key={fav.ad_id || fav.id}
+                    ad={fav}
+                    index={sectionIdx * 10 + i}
+                    liked
+                    onLike={(e) => handleRemove(fav, e)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

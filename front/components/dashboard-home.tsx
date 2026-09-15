@@ -2,38 +2,26 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
-import {
-  Search, Heart, BedDouble, Bath, MapPin, SlidersHorizontal, Plus,
-  Sparkles, Star, ChevronLeft, Phone, MessageSquare, Eye
-} from "lucide-react"
+import { Search, SlidersHorizontal, Plus, Sparkles, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getAds, getRecommendations, addFavorite, removeFavorite, listFavorites } from "@/lib/api"
 import { SkeletonGrid } from "@/components/skeleton"
+import { PropertyPackageCard } from "@/components/property-package-card"
 import confetti from "canvas-confetti"
 
 const TAGS = ["Tous", "maison", "appartement", "studio", "villa", "terrain", "bureau", "magasin"]
 
-const FALLBACK_IMAGES = [
-  "/images/house-1.jpg",
-  "/images/house-2.jpg",
-  "/images/house-3.jpg",
-  "/images/house-4.jpg",
-  "/images/house-5.jpg",
-  "/images/house-6.jpg",
-]
-
-function fallbackImage(index: number) {
-  return FALLBACK_IMAGES[index % FALLBACK_IMAGES.length]
+const TYPE_LABELS: Record<string, string> = {
+  maison: "Maisons",
+  appartement: "Appartements",
+  studio: "Studios",
+  villa: "Villas",
+  terrain: "Terrains",
+  bureau: "Bureaux",
+  magasin: "Magasins",
 }
 
-function getPropertyImage(ad: any, index: number) {
-  if (ad.photos && ad.photos.length > 0) {
-    const url = ad.photos[0].url || ad.photos[0]
-    if (url) return url
-  }
-  return fallbackImage(index)
-}
+const TYPE_ORDER = ["maison", "appartement", "studio", "villa", "terrain", "bureau", "magasin"]
 
 export function DashboardHome() {
   const router = useRouter()
@@ -44,7 +32,6 @@ export function DashboardHome() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [likedAds, setLikedAds] = useState<Set<string>>(new Set())
-  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const fetchAds = useCallback(async () => {
     setLoading(true)
@@ -78,7 +65,6 @@ export function DashboardHome() {
     fetchRecommendations()
   }, [fetchAds, fetchRecommendations])
 
-  // Load existing favorites on mount
   useEffect(() => {
     async function loadFavorites() {
       try {
@@ -97,14 +83,12 @@ export function DashboardHome() {
   const toggleLike = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation()
     const wasLiked = likedAds.has(id)
-    // Optimistic UI update
     setLikedAds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
-    // Confetti only when adding
     if (!wasLiked && e) {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
       const x = (rect.left + rect.width / 2) / window.innerWidth
@@ -123,7 +107,6 @@ export function DashboardHome() {
         })
       }, 100)
     }
-    // Call API
     try {
       if (wasLiked) {
         await removeFavorite(id)
@@ -131,7 +114,6 @@ export function DashboardHome() {
         await addFavorite(id)
       }
     } catch (err) {
-      // Revert on error
       setLikedAds((prev) => {
         const next = new Set(prev)
         if (wasLiked) next.add(id)
@@ -141,17 +123,24 @@ export function DashboardHome() {
     }
   }
 
-  const formatLocation = (ad: any) => {
-    const parts = [ad.district, ad.city].filter(Boolean)
-    return parts.length ? parts.join(", ") : "Cameroun"
-  }
+  // Group ads by property type
+  const groupedAds = (() => {
+    const groups: Record<string, any[]> = {}
+    for (const ad of ads) {
+      const type = ad.property_type || "autre"
+      if (!groups[type]) groups[type] = []
+      groups[type].push(ad)
+    }
+    return groups
+  })()
 
-  const formatPrice = (price: any) => {
-    if (!price) return "N/A"
-    return Number(price).toLocaleString("fr-FR")
-  }
-
-  const selected = ads.find(a => (a.ad_id || a.id) === selectedId)
+  // Get ordered types that have ads
+  const activeTypes = TYPE_ORDER.filter(type => groupedAds[type]?.length > 0)
+  // Add any types not in TYPE_ORDER
+  const otherTypes = Object.keys(groupedAds).filter(t => !TYPE_ORDER.includes(t) && t !== "autre")
+  const allSections = [...activeTypes, ...otherTypes]
+  // If "autre" exists, add it last
+  if (groupedAds["autre"]?.length > 0) allSections.push("autre")
 
   return (
     <div className="flex flex-col gap-6 anim-fade-up">
@@ -200,271 +189,91 @@ export function DashboardHome() {
         ))}
       </div>
 
-      {/* Main content: list + detail panel */}
-      <div className="flex gap-6 flex-1">
-        {/* Left column: property grid */}
-        <div className={cn("flex-1 min-w-0", selected ? "lg:max-w-[60%]" : "")}>
-          {/* Section label */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[15px] font-bold text-foreground">
-              Annonces récentes
-              <span className="ml-2 text-[12px] font-normal text-muted-foreground">{ads.length} trouvées</span>
-            </h2>
-            <button
-              onClick={() => router.push("/annonce/publier")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground text-background text-[12px] font-semibold hover:bg-foreground/90 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Publier</span>
-            </button>
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-[15px] font-bold text-foreground">
+          Annonces récentes
+          <span className="ml-2 text-[12px] font-normal text-muted-foreground">{ads.length} trouvées</span>
+        </h2>
+        <button
+          onClick={() => router.push("/annonce/publier")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground text-background text-[12px] font-semibold hover:bg-foreground/90 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Publier</span>
+        </button>
+      </div>
 
-          {/* Loading */}
-          {loading && <SkeletonGrid count={6} />}
+      {/* Loading */}
+      {loading && <SkeletonGrid count={6} />}
 
-          {/* Error */}
-          {!loading && error && (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <p className="text-[14px] font-semibold text-foreground">{error}</p>
-              <p className="text-[12px] text-muted-foreground mt-1">Vérifiez que le backend est démarré</p>
-              <button onClick={fetchAds} className="mt-4 px-4 py-2 bg-foreground text-background rounded-full text-sm font-medium hover:bg-foreground/90 transition-colors">
-                Réessayer
-              </button>
-            </div>
-          )}
-
-          {/* Empty */}
-          {!loading && !error && ads.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <Heart size={36} className="text-muted-foreground mb-3" />
-              <p className="text-[14px] font-semibold text-foreground">Aucune annonce trouvée</p>
-              <p className="text-[12px] text-muted-foreground mt-1">Essayez d'autres filtres ou villes</p>
-            </div>
-          )}
-
-          {/* Grid */}
-          {!loading && !error && ads.length > 0 && (
-            <div className={cn(
-              "grid gap-4",
-              selected ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3"
-            )}>
-              {ads.map((ad, i) => {
-                const adId = ad.ad_id || ad.id
-                const img = getPropertyImage(ad, i)
-                const isLiked = likedAds.has(adId)
-                const isSelected = selectedId === adId
-                return (
-                  <div
-                    key={adId}
-                    onClick={() => setSelectedId(isSelected ? null : adId)}
-                    className={cn(
-                      "group rounded-2xl overflow-hidden bg-card border cursor-pointer anim-fade-up",
-                      isSelected ? "border-foreground shadow-lg ring-2 ring-foreground/10" : "border-border"
-                    )}
-                    style={{
-                      animationDelay: `${i * 55}ms`,
-                      transition: "transform 0.24s cubic-bezier(0.22,1,0.36,1), box-shadow 0.24s ease, border-color 0.2s ease",
-                    }}
-                    onMouseEnter={e => {
-                      if (!isSelected) {
-                        ;(e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"
-                        ;(e.currentTarget as HTMLDivElement).style.boxShadow = "0 12px 32px rgba(0,0,0,0.12)"
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      ;(e.currentTarget as HTMLDivElement).style.transform = "translateY(0)"
-                      ;(e.currentTarget as HTMLDivElement).style.boxShadow = isSelected ? "" : "none"
-                    }}
-                  >
-                    {/* Image */}
-                    <div className="relative overflow-hidden" style={{ height: 176 }}>
-                      <Image
-                        src={img}
-                        alt={ad.title || "Bien immobilier"}
-                        fill
-                        sizes="(max-width: 768px) 100vw, 400px"
-                        className="object-cover transition-transform group-hover:scale-105"
-                      />
-                      {/* Heart button */}
-                      <button
-                        onClick={(e) => toggleLike(adId, e)}
-                        className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-white/85 backdrop-blur-sm rounded-full shadow-sm transition-transform hover:scale-110 z-10"
-                      >
-                        <Heart
-                          size={14}
-                          className={isLiked ? "fill-red-500 text-red-500" : "text-foreground/60"}
-                        />
-                      </button>
-                      {/* Property type badge */}
-                      {ad.property_type && (
-                        <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 rounded-full">
-                          <span>{ad.property_type}</span>
-                        </div>
-                      )}
-                      {/* View count badge */}
-                      {ad.view_count > 0 && (
-                        <div className="absolute top-3 left-3 flex items-center gap-1 bg-black/50 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 rounded-full">
-                          <Eye size={9} />
-                          <span>{ad.view_count}</span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Info */}
-                    <div className="p-3.5">
-                      <div className="flex items-start justify-between">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[13.5px] font-bold text-foreground leading-tight truncate">{ad.title || "Bien immobilier"}</p>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <MapPin size={10} className="text-muted-foreground shrink-0" />
-                            <span className="text-[11px] text-muted-foreground truncate">{formatLocation(ad)}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 mt-2.5 text-[11px] text-muted-foreground">
-                        {ad.bedrooms != null && (
-                          <span className="flex items-center gap-1"><BedDouble size={12} />{ad.bedrooms} ch.</span>
-                        )}
-                        {ad.bathrooms != null && (
-                          <span className="flex items-center gap-1"><Bath size={12} />{ad.bathrooms} sdb</span>
-                        )}
-                        {ad.area && (
-                          <span className="flex items-center gap-1">{ad.area} m²</span>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between mt-3">
-                        <span className="text-[14px] font-bold text-foreground">
-                          {formatPrice(ad.price)}
-                          <span className="text-[11px] font-normal text-muted-foreground ml-1">FCFA{ad.transaction_type === "location" ? "/mois" : ""}</span>
-                        </span>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setSelectedId(adId) }}
-                          className="bg-foreground text-background text-[11px] font-semibold px-3 py-1.5 rounded-full hover:bg-foreground/90 transition-colors"
-                        >
-                          Détails
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+      {/* Error */}
+      {!loading && error && (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <p className="text-[14px] font-semibold text-foreground">{error}</p>
+          <p className="text-[12px] text-muted-foreground mt-1">Vérifiez que le backend est démarré</p>
+          <button onClick={fetchAds} className="mt-4 px-4 py-2 bg-foreground text-background rounded-full text-sm font-medium hover:bg-foreground/90 transition-colors">
+            Réessayer
+          </button>
         </div>
+      )}
 
-        {/* Right column: detail panel */}
-        {selected && (
-          <div className="hidden lg:flex w-[360px] shrink-0 flex-col rounded-2xl overflow-hidden border border-border bg-card shadow-xl h-fit sticky top-24 anim-slide-right">
-            {/* Hero */}
-            <div className="relative overflow-hidden" style={{ height: 208 }}>
-              <Image
-                src={getPropertyImage(selected, 0)}
-                alt={selected.title || "Bien immobilier"}
-                fill
-                sizes="360px"
-                className="object-cover"
-                priority
-              />
-              <button
-                onClick={() => setSelectedId(null)}
-                className="absolute top-3 left-3 w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-md hover:bg-white/90 transition-colors"
-              >
-                <ChevronLeft size={18} className="text-foreground" />
-              </button>
-              {selected.property_type && (
-                <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/50 backdrop-blur-sm text-white">
-                  {selected.property_type}
-                </div>
-              )}
-            </div>
+      {/* Empty */}
+      {!loading && !error && ads.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <MapPin size={36} className="text-muted-foreground mb-3" />
+          <p className="text-[14px] font-semibold text-foreground">Aucune annonce trouvée</p>
+          <p className="text-[12px] text-muted-foreground mt-1">Essayez d'autres filtres ou villes</p>
+        </div>
+      )}
 
-            <div className="p-5 flex flex-col gap-4">
-              {/* Title row */}
-              <div className="flex items-start justify-between">
-                <div className="min-w-0">
-                  <h3 className="text-[18px] font-bold text-foreground leading-tight">{selected.title || "Bien immobilier"}</h3>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{formatLocation(selected)}</p>
+      {/* Sections by type — Gallery style cards */}
+      {!loading && !error && ads.length > 0 && (
+        <div className="flex flex-col gap-12">
+          {allSections.map((type, sectionIdx) => (
+            <div key={type} className="flex flex-col gap-4">
+              {/* Section header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-[16px] font-bold text-foreground">
+                    {TYPE_LABELS[type] || type.charAt(0).toUpperCase() + type.slice(1)}
+                  </h3>
+                  <span className="text-[12px] font-normal text-muted-foreground">
+                    {groupedAds[type].length} {groupedAds[type].length > 1 ? "annonces" : "annonce"}
+                  </span>
                 </div>
                 <button
-                  onClick={(e) => toggleLike(selected.ad_id || selected.id, e)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-muted hover:bg-muted/80 transition-colors shrink-0"
+                  onClick={() => setActiveTag(type)}
+                  className="text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <Heart
-                    size={15}
-                    className={likedAds.has(selected.ad_id || selected.id) ? "fill-red-500 text-red-500" : "text-muted-foreground"}
-                  />
+                  Voir tout →
                 </button>
               </div>
 
-              {/* Price + stats */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                  {selected.bedrooms != null && (
-                    <span className="flex items-center gap-1"><BedDouble size={13} />{selected.bedrooms} ch.</span>
-                  )}
-                  {selected.bathrooms != null && (
-                    <span className="flex items-center gap-1"><Bath size={13} />{selected.bathrooms} sdb</span>
-                  )}
-                  {selected.area && (
-                    <span>{selected.area} m²</span>
-                  )}
-                </div>
-                <span className="text-[16px] font-bold text-foreground">
-                  {formatPrice(selected.price)}
-                  <span className="text-[11px] font-normal text-muted-foreground ml-1">FCFA{selected.transaction_type === "location" ? "/mois" : ""}</span>
-                </span>
-              </div>
-
-              <div className="border-t border-border" />
-
-              {/* Description */}
-              {selected.description && (
-                <div>
-                  <p className="text-[12px] font-semibold text-foreground mb-1.5">Description</p>
-                  <p className="text-[11.5px] text-muted-foreground leading-relaxed line-clamp-4">
-                    {selected.description}
-                  </p>
-                </div>
-              )}
-
-              {/* Agent */}
-              {selected.agent_name && (
-                <div>
-                  <p className="text-[12px] font-semibold text-foreground mb-3">Agent</p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-10 h-10 rounded-full overflow-hidden border border-border shrink-0 bg-muted flex items-center justify-center">
-                        <span className="text-[14px] font-bold text-foreground">
-                          {selected.agent_name?.charAt(0)?.toUpperCase() || "?"}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-[12px] font-semibold text-foreground">{selected.agent_name}</p>
-                        <p className="text-[10px] text-muted-foreground">{selected.agent_phone || "Agent immobilier"}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => router.push(`/chat?ad_id=${selected.ad_id || selected.id}`)}
-                        className="w-8 h-8 flex items-center justify-center border border-border rounded-full hover:bg-muted transition-colors"
-                      >
-                        <MessageSquare size={13} className="text-foreground" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* CTA */}
-              <button
-                onClick={() => router.push(`/annonce/${selected.ad_id || selected.id}`)}
-                className="w-full bg-foreground text-background font-semibold text-[13.5px] py-3.5 rounded-full hover:bg-foreground/90 transition-opacity"
+              {/* Gallery cards grid */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, 288px)",
+                  gap: "24px",
+                  justifyContent: "center",
+                  width: "100%",
+                }}
               >
-                Voir l'annonce complète
-              </button>
+                {groupedAds[type].map((ad, i) => (
+                  <PropertyPackageCard
+                    key={ad.ad_id || ad.id}
+                    ad={ad}
+                    index={sectionIdx * 10 + i}
+                    liked={likedAds.has(ad.ad_id || ad.id)}
+                    onLike={(e) => toggleLike(ad.ad_id || ad.id, e)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Recommendations IA */}
       {recommendations.length > 0 && !loading && !error && (
@@ -473,43 +282,23 @@ export function DashboardHome() {
             <Sparkles className="w-4 h-4 text-foreground" />
             <h2 className="text-[15px] font-bold text-foreground">Recommandé pour vous</h2>
           </div>
-          <div className={cn(
-            "grid gap-4",
-            "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"
-          )}>
-            {recommendations.map((ad, i) => {
-              const adId = ad.ad_id || ad.id
-              const img = getPropertyImage(ad, i)
-              return (
-                <div
-                  key={adId || i}
-                  onClick={() => router.push(`/annonce/${adId}`)}
-                  className="group rounded-2xl overflow-hidden bg-card border border-border cursor-pointer anim-fade-up hover:shadow-lg transition-shadow"
-                  style={{ animationDelay: `${i * 55}ms` }}
-                >
-                  <div className="relative overflow-hidden" style={{ height: 140 }}>
-                    <Image
-                      src={img}
-                      alt={ad.title || "Bien"}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 300px"
-                      className="object-cover transition-transform group-hover:scale-105"
-                    />
-                  </div>
-                  <div className="p-3">
-                    <p className="text-[12.5px] font-bold text-foreground truncate">{ad.title || "Bien immobilier"}</p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <MapPin size={10} className="text-muted-foreground" />
-                      <span className="text-[10px] text-muted-foreground truncate">{formatLocation(ad)}</span>
-                    </div>
-                    <p className="text-[13px] font-bold text-foreground mt-2">
-                      {formatPrice(ad.price)}
-                      <span className="text-[10px] font-normal text-muted-foreground ml-1">FCFA</span>
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, 260px)",
+              gap: "20px",
+              justifyContent: "center",
+              width: "100%",
+            }}
+          >
+            {recommendations.map((ad, i) => (
+              <PropertyPackageCard
+                key={ad.ad_id || ad.id || i}
+                ad={ad}
+                index={i}
+                compact
+              />
+            ))}
           </div>
         </div>
       )}
