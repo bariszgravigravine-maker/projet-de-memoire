@@ -5,18 +5,19 @@ import { usePathname } from "next/navigation"
 import Image from "next/image"
 import {
   MapPin, Bell, Search, Heart, User, Home,
-  Grid2X2, MessageSquare, Bell as BellIcon, Shield, Plus, Filter, TrendingUp
+  Grid2X2, MessageSquare, Shield, Plus, Filter, TrendingUp, Calendar
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { NestFindLogo } from "@/components/nestfind-logo"
 import { countUnreadMessages, listNotifications } from "@/lib/api"
 import { useRealtime } from "@/components/realtime-provider"
 
-type NavItem = "home" | "liked" | "search" | "messages" | "profile"
+type NavItem = "home" | "liked" | "tours" | "search" | "messages" | "profile"
 
 const NAV_ROUTES: Record<NavItem, string> = {
   home: "/dashboard",
   liked: "/dashboard/saved",
+  tours: "/dashboard/tours",
   search: "/dashboard/search",
   messages: "/messages",
   profile: "/dashboard/profile",
@@ -25,14 +26,15 @@ const NAV_ROUTES: Record<NavItem, string> = {
 const NAV_ITEMS: { id: NavItem; icon: typeof Home; label: string }[] = [
   { id: "home", icon: Home, label: "Home" },
   { id: "liked", icon: Heart, label: "Saved" },
+  { id: "tours", icon: Calendar, label: "Tours" },
   { id: "search", icon: Search, label: "Search" },
-  { id: "messages", icon: MessageSquare, label: "Messages" },
   { id: "profile", icon: User, label: "Profile" },
 ]
 
 const PATH_TO_NAV: Record<string, NavItem> = {
   "/dashboard": "home",
   "/dashboard/saved": "liked",
+  "/dashboard/tours": "tours",
   "/dashboard/search": "search",
   "/messages": "messages",
   "/dashboard/profile": "profile",
@@ -41,7 +43,6 @@ const PATH_TO_NAV: Record<string, NavItem> = {
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/dashboard"
   const activeNav = PATH_TO_NAV[pathname] || "home"
-  const [searchQuery, setSearchQuery] = useState("")
 
   const handleNavClick = (nav: NavItem) => {
     window.location.href = NAV_ROUTES[nav]
@@ -64,9 +65,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         const notifs = notifRes.data || notifRes || []
         const unread = Array.isArray(notifs) ? notifs.filter((n: any) => !n.is_read).length : 0
         setUnreadNotifs(unread)
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
     loadBadges()
     const interval = setInterval(loadBadges, 30000)
@@ -75,129 +74,133 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="w-full min-h-screen bg-background flex flex-col" style={{ fontFamily: "var(--font-inter, system-ui, sans-serif)" }}>
-      {/* ── Top Nav (persistent, hidden on search full-screen) ── */}
+
+      {/* ── Top Nav — demo mobile style ── */}
       {!isSearchPage && (
-      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border anim-slide-down">
-        <div className="max-w-screen-xl mx-auto flex items-center justify-between px-4 sm:px-6 py-3">
-          <NestFindLogo size="md" />
-
-          <div className="hidden sm:flex items-center gap-1.5 bg-muted rounded-full px-3 py-1.5">
-            <MapPin size={13} className="text-muted-foreground" />
-            <span className="text-[12px] text-muted-foreground font-medium">Elgin St. Celina, Delaware</span>
+      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border/40 anim-slide-down">
+        {/* Logo row */}
+        <div className="flex items-center justify-center py-2 border-b border-border/40">
+          <NestFindLogo size="sm" />
+        </div>
+        {/* Location + actions row */}
+        <div className="flex items-center justify-between px-4 pt-3 pb-2">
+          <div className="flex items-center gap-1.5">
+            <MapPin size={14} className="text-foreground" />
+            <span className="text-[12px] font-medium text-foreground">Yaoundé, Cameroun</span>
           </div>
-
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => window.location.href = "/notifications"}
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors relative"
-              title="Notifications"
+              className="w-8 h-8 flex items-center justify-center relative transition-transform active:scale-90 hover:scale-110"
             >
-              <Bell size={18} className="text-foreground" />
+              <Bell size={17} className="text-foreground" />
               {rtNotifs > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full">
-                  {rtNotifs > 99 ? "99+" : rtNotifs}
-                </span>
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full anim-pop-in" />
               )}
             </button>
             <button
               onClick={() => window.location.href = "/criteres"}
-              className="hidden sm:flex w-9 h-9 items-center justify-center rounded-full hover:bg-muted transition-colors"
-              title="Critères de recherche"
+              className="w-8 h-8 flex items-center justify-center"
+              style={{ transition: "transform 0.15s cubic-bezier(0.34,1.56,0.64,1)" }}
+              onMouseDown={e => (e.currentTarget.style.transform = "scale(0.88)")}
+              onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
             >
-              <Filter size={18} className="text-foreground" />
-            </button>
-            <button
-              onClick={() => window.location.href = "/estimation"}
-              className="hidden md:flex w-9 h-9 items-center justify-center rounded-full hover:bg-muted transition-colors"
-              title="Estimation IA"
-            >
-              <TrendingUp size={18} className="text-foreground" />
-            </button>
-            <button
-              onClick={() => window.location.href = "/admin"}
-              className="hidden md:flex w-9 h-9 items-center justify-center rounded-full hover:bg-muted transition-colors"
-              title="Administration"
-            >
-              <Shield size={18} className="text-foreground" />
+              <Grid2X2 size={17} className="text-foreground" />
             </button>
             <button
               onClick={() => window.location.href = "/dashboard/profile"}
-              className="w-9 h-9 rounded-full overflow-hidden border-2 border-foreground/10 hover:opacity-80 transition-opacity"
+              className="w-8 h-8 rounded-full overflow-hidden border-2 border-foreground/10 hover:opacity-80 transition-opacity"
             >
-              <Image src="/images/agent.jpg" alt="Profile" width={36} height={36} className="object-cover w-full h-full" />
+              <Image src="/images/agent.jpg" alt="Profile" width={32} height={32} className="object-cover w-full h-full" />
             </button>
           </div>
         </div>
       </header>
       )}
 
-      {/* ── Main content area ── */}
+      {/* ── Main content ── */}
       <main className={cn(
         "max-w-screen-xl mx-auto w-full flex flex-col flex-1 relative",
-        pathname === "/dashboard/search" ? "p-0" : "px-4 py-4 sm:px-6 sm:py-6 xl:pl-20 gap-4 sm:gap-6"
+        isSearchPage ? "p-0" : "px-4 py-4 xl:pl-20 gap-4"
       )}>
         {children}
       </main>
 
-      {/* ── Bottom Nav (mobile web view, hidden on search) ── */}
+      {/* ── Bottom Nav — demo mobile style (pill dark bar, circular icons) ── */}
       {!isSearchPage && (
-      <div className="sticky bottom-0 z-20 xl:hidden bg-background/95 backdrop-blur border-t border-border">
-        <div className="flex items-center justify-around py-2 px-4">
-          {NAV_ITEMS.map(({ id, icon: Icon, label }) => {
-            const badge = id === "messages" ? rtMessages : id === "liked" ? 3 : 0
+      <div className="sticky bottom-0 z-20 xl:hidden px-4 pb-3 pt-1 bg-background">
+        <div className="bg-[var(--app-nav-bg)] rounded-full flex items-center justify-around py-3 px-2">
+          {NAV_ITEMS.map(({ id, icon: Icon }) => {
+            const badge = id === "messages" ? rtMessages : 0
             return (
-            <button
-              key={id}
-              onClick={() => handleNavClick(id)}
-              className={cn(
-                "flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors relative",
-                activeNav === id ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <div className="relative">
-                <Icon size={20} />
+              <button
+                key={id}
+                onClick={() => handleNavClick(id)}
+                className={cn(
+                  "w-9 h-9 flex items-center justify-center rounded-full relative",
+                  activeNav === id ? "bg-white" : ""
+                )}
+                style={{
+                  transition: "background 0.22s cubic-bezier(0.22,1,0.36,1), transform 0.15s cubic-bezier(0.34,1.56,0.64,1)",
+                }}
+                onMouseDown={e => (e.currentTarget.style.transform = "scale(0.86)")}
+                onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+              >
+                <Icon size={17} className={cn(
+                  activeNav === id ? "text-foreground" : "text-white/60",
+                )} />
                 {badge > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full">
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 flex items-center justify-center bg-red-500 text-white text-[8px] font-bold rounded-full">
                     {badge > 99 ? "99+" : badge}
                   </span>
                 )}
-              </div>
-              <span className="text-[10px] font-medium">{label}</span>
-            </button>
+              </button>
             )
           })}
         </div>
       </div>
       )}
 
-      {/* ── Desktop sidebar nav (hidden on search) — matches demo style ── */}
+      {/* ── Desktop sidebar — same icons/style, vertical ── */}
       {!isSearchPage && (
-      <nav className="fixed left-0 top-1/2 -translate-y-1/2 hidden xl:flex flex-col items-center gap-2 bg-background/80 backdrop-blur border border-border rounded-2xl p-2 ml-3 shadow-lg z-20">
+      <nav className="fixed left-0 top-1/2 -translate-y-1/2 hidden xl:flex flex-col items-center gap-1 bg-[var(--app-nav-bg)] rounded-full p-2 ml-3 shadow-lg z-20">
         {NAV_ITEMS.map(({ id, icon: Icon }) => {
           const badge = id === "messages" ? rtMessages : 0
           return (
-          <button
-            key={id}
-            onClick={() => handleNavClick(id)}
-            className={cn(
-              "w-10 h-10 flex items-center justify-center rounded-xl transition-colors relative",
-              activeNav === id ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            )}
-          >
-            <Icon size={18} />
-            {badge > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full">
-                {badge > 99 ? "99+" : badge}
-              </span>
-            )}
-          </button>
+            <button
+              key={id}
+              onClick={() => handleNavClick(id)}
+              className={cn(
+                "w-10 h-10 flex items-center justify-center rounded-full relative",
+                activeNav === id ? "bg-white" : ""
+              )}
+              style={{
+                transition: "background 0.22s cubic-bezier(0.22,1,0.36,1), transform 0.15s cubic-bezier(0.34,1.56,0.64,1)",
+              }}
+              onMouseDown={e => (e.currentTarget.style.transform = "scale(0.86)")}
+              onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+            >
+              <Icon size={18} className={cn(
+                activeNav === id ? "text-foreground" : "text-white/60",
+              )} />
+              {badge > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 flex items-center justify-center bg-red-500 text-white text-[8px] font-bold rounded-full">
+                  {badge > 99 ? "99+" : badge}
+                </span>
+              )}
+            </button>
           )
         })}
-        <div className="w-6 h-px bg-border my-1" />
+        <div className="w-5 h-px bg-white/10 my-1" />
         <button
           onClick={() => window.location.href = "/annonce/publier"}
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-foreground text-background hover:bg-foreground/90 transition-colors"
+          className="w-10 h-10 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10"
           title="Publier une annonce"
+          style={{
+            transition: "background 0.22s cubic-bezier(0.22,1,0.36,1), color 0.22s ease, transform 0.15s cubic-bezier(0.34,1.56,0.64,1)",
+          }}
+          onMouseDown={e => (e.currentTarget.style.transform = "scale(0.86)")}
+          onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
         >
           <Plus size={18} />
         </button>
