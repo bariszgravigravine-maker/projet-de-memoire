@@ -62,7 +62,8 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
     try {
       map = new maplibregl.Map({
         container: mapContainer.current,
-        style: `https://api.maptiler.com/maps/streets/style.json?key=pZbOuTTgEMlz7km8AJvW`,
+        // Style sombre MapTiler pour correspondre au thème noir/vert du frontend
+        style: `https://api.maptiler.com/maps/dataviz-dark/style.json?key=pZbOuTTgEMlz7km8AJvW`,
         center: DEFAULT_CENTER, // Yaoundé (centre-ville)
         zoom: CITY_ZOOM, // Zoom "ville" pour voir directement les immeubles en 3D
         pitch: 60, // Vue 3D inclinée
@@ -90,15 +91,15 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
     map.on("load", () => {
       setMapReady(true)
       try {
-        // Ciel + brume : donne de la profondeur à la vue inclinée façon
-        // showcase MapTiler (au lieu d'un aplat uni au-dessus de l'horizon)
+        // Ciel + brume teintés sombre/vert : donne de la profondeur à la vue
+        // inclinée et reste cohérent avec le thème noir/vert du frontend
         map.setSky({
-          "sky-color": "#bcdcff",
-          "sky-horizon-blend": 0.6,
-          "horizon-color": "#f6f1e5",
+          "sky-color": "#0a1a12",
+          "sky-horizon-blend": 0.7,
+          "horizon-color": "#1d4a2e",
           "horizon-fog-blend": 0.6,
-          "fog-color": "#d8e4ee",
-          "fog-ground-blend": 0.7,
+          "fog-color": "#08130d",
+          "fog-ground-blend": 0.8,
         })
 
         // Éclairage directionnel pour donner du relief aux façades des
@@ -117,14 +118,18 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
           ?.layers?.find((l: any) => l.type === "symbol" && l.layout?.["text-field"])?.id
 
         // Couche 3D des bâtiments avec MapTiler - s'affiche au zoom 14+
-        // Style inspiré de leafmap (lightgray -> royalblue -> lightblue)
+        // Palette verte en dégradé selon la hauteur, sur fond sombre,
+        // pour coller au thème noir/vert du frontend
         map.addLayer(
           {
             id: "3d-buildings",
-            source: "openmaptiles",
+            source: "maptiler_planet",
             "source-layer": "building",
             type: "fill-extrusion",
             minzoom: 13,
+            // Exclure les éléments marqués hide_3d (p.ex. toits stylisés) sans
+            // rejeter les bâtiments qui n'ont pas ce champ (null != true)
+            filter: ["all", ["!=", ["get", "hide_3d"], true]],
             layout: {
               // Coins arrondis : rendu moins "boîte à chaussures", plus proche
               // du showcase MapTiler
@@ -135,10 +140,10 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
                 "interpolate",
                 ["linear"],
                 ["get", "render_height"],
-                0, "#e2e8f0",
-                40, "#93b8e0",
-                120, "#3b6fc9",
-                250, "#1e3f8f",
+                0, "#3f4a44",
+                40, "#4ade80",
+                120, "#16a34a",
+                250, "#14532d",
               ],
               "fill-extrusion-height": [
                 "interpolate",
@@ -167,12 +172,12 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
         map.addLayer(
           {
             id: "3d-buildings-outline",
-            source: "openmaptiles",
+            source: "maptiler_planet",
             "source-layer": "building",
             type: "line",
             minzoom: 13,
             paint: {
-              "line-color": "#1e3a5f",
+              "line-color": "#052e16",
               "line-width": 0.5,
               "line-opacity": 0.4,
             },
@@ -221,10 +226,10 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
         ? `${Number(prop.price).toLocaleString("fr-FR")} FCFA`
         : ""
 
-      // Custom HTML marker with price badge
+      // Custom HTML marker with price badge — vert accent du thème
       const el = document.createElement("div")
       el.style.cssText = `
-        background: rgba(26, 26, 26, 0.95);
+        background: #15803d;
         color: white;
         padding: 4px 10px;
         border-radius: 16px;
@@ -355,7 +360,7 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
           inset: 0,
           width: "100%",
           height: "100%",
-          background: "#e5e7eb",
+          background: "#111418",
         }}
       />
       {mapError && (
@@ -365,14 +370,14 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#f5f5f4",
+          background: "#0c0f12",
           zIndex: 1,
         }}>
           <div style={{ textAlign: "center", padding: "2rem" }}>
-            <p style={{ fontSize: "14px", fontWeight: 600, color: "#57534e", marginBottom: "4px" }}>
+            <p style={{ fontSize: "14px", fontWeight: 600, color: "#e7e5e4", marginBottom: "4px" }}>
               Carte indisponible
             </p>
-            <p style={{ fontSize: "12px", color: "#a8a29e" }}>
+            <p style={{ fontSize: "12px", color: "#8a8f96" }}>
               {mapError}
             </p>
           </div>
@@ -385,19 +390,19 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#f5f5f4",
+          background: "#0c0f12",
           zIndex: 1,
         }}>
           <div style={{ textAlign: "center" }}>
             <div className="animate-spin" style={{
               width: "32px",
               height: "32px",
-              border: "3px solid #d6d3d1",
-              borderTopColor: "#1c1917",
+              border: "3px solid #2a2f36",
+              borderTopColor: "#22c55e",
               borderRadius: "50%",
               margin: "0 auto 8px",
             }} />
-            <p style={{ fontSize: "12px", color: "#78716c" }}>Chargement de la carte...</p>
+            <p style={{ fontSize: "12px", color: "#8a8f96" }}>Chargement de la carte...</p>
           </div>
         </div>
       )}
