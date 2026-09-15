@@ -62,7 +62,8 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
     try {
       map = new maplibregl.Map({
         container: mapContainer.current,
-        style: `https://api.maptiler.com/maps/streets/style.json?key=pZbOuTTgEMlz7km8AJvW`,
+        // Style "backdrop" très épuré, recoloré en blanc pur + noir (voir plus bas)
+        style: `https://api.maptiler.com/maps/backdrop/style.json?key=pZbOuTTgEMlz7km8AJvW`,
         center: DEFAULT_CENTER, // Yaoundé (centre-ville)
         zoom: CITY_ZOOM, // Zoom "ville" pour voir directement les immeubles en 3D
         pitch: 60, // Vue 3D inclinée
@@ -86,42 +87,75 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
       console.error("[Map] Erreur:", e.error?.message || e.message || e)
     })
 
-    // Ajouter le ciel/l'éclairage + les bâtiments 3D quand la carte est chargée
+    // Recolore le style en noir & blanc pur + ajoute les bâtiments 3D noirs
     map.on("load", () => {
       setMapReady(true)
       try {
-        // Ciel + brume : donne de la profondeur à la vue inclinée façon
-        // showcase MapTiler (au lieu d'un aplat uni au-dessus de l'horizon)
+        const style = map.getStyle()
+        const layers: any[] = style?.layers || []
+
+        // ── Sol blanc bien blanc ──
+        for (const layer of layers) {
+          if (layer.id === "3d-buildings") continue
+          if (layer.type === "background") {
+            map.setPaintProperty(layer.id, "background-color", "#ffffff")
+          } else if (layer.type === "fill") {
+            // Terrain, eau, parcs, emprises 2D des bâtiments : tout en blanc
+            map.setPaintProperty(layer.id, "fill-color", "#ffffff")
+            map.setPaintProperty(layer.id, "fill-opacity", 1)
+          } else if (layer.type === "hillshade") {
+            map.setLayoutProperty(layer.id, "visibility", "none")
+          } else if (layer.type === "line") {
+            const id = String(layer.id).toLowerCase()
+            if (id.includes("border")) {
+              map.setPaintProperty(layer.id, "line-color", "#b5b5b5")
+            } else {
+              // Routes, chemins, voies ferrées : gris clair discret
+              map.setPaintProperty(layer.id, "line-color", "#d9d9d9")
+            }
+          } else if (layer.type === "symbol") {
+            // Libellés en noir sur halo blanc
+            if (map.getLayoutProperty(layer.id, "text-field")) {
+              map.setPaintProperty(layer.id, "text-color", "#1a1a1a")
+              map.setPaintProperty(layer.id, "text-halo-color", "#ffffff")
+              map.setPaintProperty(layer.id, "text-halo-width", 1)
+            }
+            if (map.getLayoutProperty(layer.id, "icon-image")) {
+              map.setPaintProperty(layer.id, "icon-color", "#1a1a1a")
+            }
+          }
+        }
+
+        // ── Ciel blanc pour une vue inclinée totalement épurée ──
         map.setSky({
-          "sky-color": "#bcdcff",
-          "sky-horizon-blend": 0.6,
-          "horizon-color": "#f6f1e5",
+          "sky-color": "#ffffff",
+          "sky-horizon-blend": 0.8,
+          "horizon-color": "#f7f7f7",
           "horizon-fog-blend": 0.6,
-          "fog-color": "#d8e4ee",
-          "fog-ground-blend": 0.7,
+          "fog-color": "#ffffff",
+          "fog-ground-blend": 0.8,
         })
 
-        // Éclairage directionnel pour donner du relief aux façades des
-        // bâtiments extrudés (au lieu d'un rendu plat sans ombre)
+        // Éclairage doux : donne juste assez de relief aux faces des cubes
+        // noirs sans les délaver
         map.setLight({
           anchor: "viewport",
           color: "#ffffff",
-          intensity: 0.35,
+          intensity: 0.5,
           position: [1.5, 90, 45],
         })
 
         // Insère la couche des bâtiments juste avant les libellés pour que
         // les noms de rues/quartiers restent lisibles au-dessus des toits
-        const labelLayerId = map
-          .getStyle()
-          ?.layers?.find((l: any) => l.type === "symbol" && l.layout?.["text-field"])?.id
+        const labelLayerId = layers.find(
+          (l: any) => l.type === "symbol" && l.layout?.["text-field"]
+        )?.id
 
-        // Couche 3D des bâtiments avec MapTiler - s'affiche au zoom 14+
-        // Dégradé bleu selon la hauteur
+        // ── Bâtiments 3D : noir intégral, sans dégradé ni contour ──
         map.addLayer(
           {
             id: "3d-buildings",
-            source: "openmaptiles",
+            source: "maptiler_planet",
             "source-layer": "building",
             type: "fill-extrusion",
             minzoom: 13,
@@ -129,20 +163,11 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
             // rejeter les bâtiments qui n'ont pas ce champ (null != true)
             filter: ["all", ["!=", ["get", "hide_3d"], true]],
             layout: {
-              // Coins arrondis : rendu moins "boîte à chaussures", plus proche
-              // du showcase MapTiler
+              // Coins arrondis : rendu moins "boîte à chaussures"
               "fill-extrusion-rounded-corner-distance": 0.5,
             },
             paint: {
-              "fill-extrusion-color": [
-                "interpolate",
-                ["linear"],
-                ["get", "render_height"],
-                0, "#e2e8f0",
-                40, "#93b8e0",
-                120, "#3b6fc9",
-                250, "#1e3f8f",
-              ],
+              "fill-extrusion-color": "#0a0a0a",
               "fill-extrusion-height": [
                 "interpolate",
                 ["linear"],
@@ -157,30 +182,8 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
                 13, 0,
                 14, ["get", "render_min_height"],
               ],
-              "fill-extrusion-opacity": 0.92,
-              // Assombrit légèrement la base des bâtiments pour simuler une
-              // ombre portée / occlusion ambiante (pas d'AO natif dispo)
-              "fill-extrusion-vertical-gradient": true,
-            },
-          },
-          labelLayerId
-        )
-
-        // Couche de contour des bâtiments pour plus de relief
-        map.addLayer(
-          {
-            id: "3d-buildings-outline",
-            source: "openmaptiles",
-            "source-layer": "building",
-            type: "line",
-            minzoom: 13,
-            paint: {
-              "line-color": "#1e3a5f",
-              "line-width": 0.5,
-              "line-opacity": 0.4,
-            },
-            layout: {
-              "line-join": "round",
+              "fill-extrusion-opacity": 1,
+              "fill-extrusion-vertical-gradient": false,
             },
           },
           labelLayerId
