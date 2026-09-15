@@ -27,8 +27,8 @@ export default function Home() {
     <div className="min-h-screen w-full flex flex-col bg-background">
       <MobileHomePage onLaunchApp={handleStart} />
 
-      {/* Phone frame demo */}
-      <div className="flex flex-col items-center justify-center py-16 bg-[var(--app-bg)]" id="phone-demo">
+      {/* Phone frame demo — hidden on mobile/PWA (user is already on a phone) */}
+      <div className="hidden lg:flex flex-col items-center justify-center py-16 bg-[var(--app-bg)]" id="phone-demo">
         <div className="flex flex-col items-center gap-3 mb-10 anim-fade-up">
           <p className="text-[13px] font-medium text-muted-foreground tracking-wide uppercase">
             Demo
