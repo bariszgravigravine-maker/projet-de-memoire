@@ -1,5 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api"
-export const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5001"
+// Use relative /api in production (Vercel rewrites proxy to VPS), localhost in dev
+const API_URL = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === "production" ? "/api" : "http://localhost:5001/api")
+export const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || (process.env.NODE_ENV === "production" ? "" : "http://localhost:5001")
 
 // === JWT ===
 export function getToken(): string | null {

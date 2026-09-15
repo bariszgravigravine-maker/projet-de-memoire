@@ -36,7 +36,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Get token from localStorage
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+    const token = typeof window !== "undefined" ? localStorage.getItem("immo_token") : null
     if (!token) return
 
     const s = io(SOCKET_URL, {
