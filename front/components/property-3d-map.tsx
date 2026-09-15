@@ -14,6 +14,23 @@ if (typeof window !== "undefined") {
   maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs")
 }
 
+// Yaoundé (centre-ville) — vue par défaut, déjà au niveau "ville" pour que
+// les immeubles 3D soient visibles immédiatement, sans avoir à zoomer.
+const DEFAULT_CENTER: [number, number] = [11.5167, 3.8667]
+const CITY_ZOOM = 15.6
+// Zoom minimal en dessous duquel les bâtiments 3D ne sont plus visibles
+// (voir minzoom de la couche "3d-buildings" plus bas).
+const MIN_BUILDING_ZOOM = 14.8
+
+function normalizeCity(name?: string) {
+  if (!name) return ""
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+}
+
 interface Property3DMapProps {
   properties: Array<{
     ad_id?: string
@@ -46,10 +63,10 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
       map = new maplibregl.Map({
         container: mapContainer.current,
         style: `https://api.maptiler.com/maps/streets/style.json?key=pZbOuTTgEMlz7km8AJvW`,
-        center: [11.5167, 3.8667], // Centre du Cameroun
-        zoom: 11, // Zoom ville au lieu de pays
+        center: DEFAULT_CENTER, // Yaoundé (centre-ville)
+        zoom: CITY_ZOOM, // Zoom "ville" pour voir directement les immeubles en 3D
         pitch: 60, // Vue 3D inclinée
-        bearing: -20,
+        bearing: -17,
         maxPitch: 85,
         antialias: true,
       })
@@ -69,61 +86,102 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
       console.error("[Map] Erreur:", e.error?.message || e.message || e)
     })
 
-    // Ajouter les bâtiments 3D quand la carte est chargée
+    // Ajouter le ciel/l'éclairage + les bâtiments 3D quand la carte est chargée
     map.on("load", () => {
       setMapReady(true)
       try {
-        // Couche 3D des bâtiments avec MapTiler - s'affiche au zoom 14+
-        // Style inspiré de leafmap (lightgray -> royalblue -> lightblue)
-        map.addLayer({
-          id: "3d-buildings",
-          source: "openmaptiles",
-          "source-layer": "building",
-          type: "fill-extrusion",
-          minzoom: 14,
-          paint: {
-            "fill-extrusion-color": [
-              "interpolate",
-              ["linear"],
-              ["get", "render_height"],
-              0, "lightgray",
-              200, "royalblue",
-              400, "lightblue",
-            ],
-            "fill-extrusion-height": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              14, 0,
-              15.5, ["get", "render_height"],
-            ],
-            "fill-extrusion-base": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              14, 0,
-              15, ["get", "render_min_height"],
-            ],
-            "fill-extrusion-opacity": 0.85,
-          },
+        // Ciel + brume : donne de la profondeur à la vue inclinée façon
+        // showcase MapTiler (au lieu d'un aplat uni au-dessus de l'horizon)
+        map.setSky({
+          "sky-color": "#bcdcff",
+          "sky-horizon-blend": 0.6,
+          "horizon-color": "#f6f1e5",
+          "horizon-fog-blend": 0.6,
+          "fog-color": "#d8e4ee",
+          "fog-ground-blend": 0.7,
         })
 
-        // Couche de contour des bâtiments pour plus de relief
-        map.addLayer({
-          id: "3d-buildings-outline",
-          source: "openmaptiles",
-          "source-layer": "building",
-          type: "line",
-          minzoom: 14,
-          paint: {
-            "line-color": "#1e3a5f",
-            "line-width": 0.5,
-            "line-opacity": 0.4,
-          },
-          layout: {
-            "line-join": "round",
-          },
+        // Éclairage directionnel pour donner du relief aux façades des
+        // bâtiments extrudés (au lieu d'un rendu plat sans ombre)
+        map.setLight({
+          anchor: "viewport",
+          color: "#ffffff",
+          intensity: 0.35,
+          position: [1.5, 90, 45],
         })
+
+        // Insère la couche des bâtiments juste avant les libellés pour que
+        // les noms de rues/quartiers restent lisibles au-dessus des toits
+        const labelLayerId = map
+          .getStyle()
+          ?.layers?.find((l: any) => l.type === "symbol" && l.layout?.["text-field"])?.id
+
+        // Couche 3D des bâtiments avec MapTiler - s'affiche au zoom 14+
+        // Style inspiré de leafmap (lightgray -> royalblue -> lightblue)
+        map.addLayer(
+          {
+            id: "3d-buildings",
+            source: "openmaptiles",
+            "source-layer": "building",
+            type: "fill-extrusion",
+            minzoom: 13,
+            layout: {
+              // Coins arrondis : rendu moins "boîte à chaussures", plus proche
+              // du showcase MapTiler
+              "fill-extrusion-rounded-corner-distance": 0.5,
+            },
+            paint: {
+              "fill-extrusion-color": [
+                "interpolate",
+                ["linear"],
+                ["get", "render_height"],
+                0, "#e2e8f0",
+                40, "#93b8e0",
+                120, "#3b6fc9",
+                250, "#1e3f8f",
+              ],
+              "fill-extrusion-height": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                13, 0,
+                14.5, ["get", "render_height"],
+              ],
+              "fill-extrusion-base": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                13, 0,
+                14, ["get", "render_min_height"],
+              ],
+              "fill-extrusion-opacity": 0.92,
+              // Assombrit légèrement la base des bâtiments pour simuler une
+              // ombre portée / occlusion ambiante (pas d'AO natif dispo)
+              "fill-extrusion-vertical-gradient": true,
+            },
+          },
+          labelLayerId
+        )
+
+        // Couche de contour des bâtiments pour plus de relief
+        map.addLayer(
+          {
+            id: "3d-buildings-outline",
+            source: "openmaptiles",
+            "source-layer": "building",
+            type: "line",
+            minzoom: 13,
+            paint: {
+              "line-color": "#1e3a5f",
+              "line-width": 0.5,
+              "line-opacity": 0.4,
+            },
+            layout: {
+              "line-join": "round",
+            },
+          },
+          labelLayerId
+        )
       } catch (e: any) {
         console.warn("[Map] Couche 3D non disponible:", e?.message || e)
       }
@@ -228,19 +286,52 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
       bounds.extend([prop.longitude!, prop.latitude!])
     })
 
-    if (validProps.length > 1) {
-      mapRef.current.fitBounds(bounds, {
-        padding: 80,
-        maxZoom: 15,
+    const map = mapRef.current
+
+    // On cible la ville qui regroupe le plus de résultats plutôt que de
+    // cadrer sur l'ensemble des biens (qui peuvent être dispersés dans
+    // plusieurs villes du pays) : sinon la caméra dézoome trop loin et les
+    // immeubles 3D deviennent invisibles (ils n'existent qu'à partir du
+    // zoom "ville", voir minzoom de la couche "3d-buildings").
+    const byCity = new Map<string, typeof validProps>()
+    for (const prop of validProps) {
+      const key = normalizeCity(prop.city)
+      const arr = byCity.get(key)
+      if (arr) arr.push(prop)
+      else byCity.set(key, [prop])
+    }
+    let focusProps = validProps
+    let maxCount = 0
+    for (const arr of byCity.values()) {
+      if (arr.length > maxCount) {
+        maxCount = arr.length
+        focusProps = arr
+      }
+    }
+
+    const focusBounds = new maplibregl.LngLatBounds()
+    focusProps.forEach((p) => focusBounds.extend([p.longitude!, p.latitude!]))
+
+    const enforceCityZoom = () => {
+      if (map.getZoom() < MIN_BUILDING_ZOOM) {
+        map.easeTo({ zoom: CITY_ZOOM, duration: 600 })
+      }
+    }
+
+    if (focusProps.length > 1) {
+      map.fitBounds(focusBounds, {
+        padding: 90,
+        maxZoom: 17,
         pitch: 60,
-        bearing: -20,
+        bearing: -17,
       })
-    } else if (validProps.length === 1) {
-      mapRef.current.flyTo({
-        center: [validProps[0].longitude!, validProps[0].latitude!],
-        zoom: 14,
+      map.once("moveend", enforceCityZoom)
+    } else {
+      map.flyTo({
+        center: [focusProps[0].longitude!, focusProps[0].latitude!],
+        zoom: 16,
         pitch: 60,
-        bearing: -20,
+        bearing: -17,
       })
     }
   }, [properties, onMarkerClick])
