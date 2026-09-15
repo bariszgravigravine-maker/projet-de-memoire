@@ -114,14 +114,14 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
               map.setPaintProperty(layer.id, "line-color", "#d9d9d9")
             }
           } else if (layer.type === "symbol") {
-            // Libellés en bleu foncé sur halo blanc
+            // Libellés en noir sur halo blanc
             if (map.getLayoutProperty(layer.id, "text-field")) {
-              map.setPaintProperty(layer.id, "text-color", "#0f2f5c")
+              map.setPaintProperty(layer.id, "text-color", "#1a1a1a")
               map.setPaintProperty(layer.id, "text-halo-color", "#ffffff")
               map.setPaintProperty(layer.id, "text-halo-width", 1)
             }
             if (map.getLayoutProperty(layer.id, "icon-image")) {
-              map.setPaintProperty(layer.id, "icon-color", "#0055a4")
+              map.setPaintProperty(layer.id, "icon-color", "#1a1a1a")
             }
           }
         }
@@ -151,7 +151,7 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
           (l: any) => l.type === "symbol" && l.layout?.["text-field"]
         )?.id
 
-        // ── Bâtiments 3D : bleu français intégral, sans dégradé ni contour ──
+        // ── Bâtiments 3D : noir intégral, sans dégradé ni contour ──
         map.addLayer(
           {
             id: "3d-buildings",
@@ -167,7 +167,7 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
               "fill-extrusion-rounded-corner-distance": 0.5,
             },
             paint: {
-              "fill-extrusion-color": "#0055a4",
+              "fill-extrusion-color": "#0a0a0a",
               "fill-extrusion-height": [
                 "interpolate",
                 ["linear"],
@@ -230,7 +230,7 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
       // Custom HTML marker with price badge
       const el = document.createElement("div")
       el.style.cssText = `
-        background: rgba(0, 85, 164, 0.95);
+        background: rgba(26, 26, 26, 0.95);
         color: white;
         padding: 4px 10px;
         border-radius: 16px;
