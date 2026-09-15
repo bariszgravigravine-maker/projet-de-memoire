@@ -11,18 +11,6 @@ import confetti from "canvas-confetti"
 
 const TAGS = ["Tous", "maison", "appartement", "studio", "villa", "terrain", "bureau", "magasin"]
 
-const TYPE_LABELS: Record<string, string> = {
-  maison: "Maisons",
-  appartement: "Appartements",
-  studio: "Studios",
-  villa: "Villas",
-  terrain: "Terrains",
-  bureau: "Bureaux",
-  magasin: "Magasins",
-}
-
-const TYPE_ORDER = ["maison", "appartement", "studio", "villa", "terrain", "bureau", "magasin"]
-
 export function DashboardHome() {
   const router = useRouter()
   const [activeTag, setActiveTag] = useState("Tous")
@@ -123,25 +111,6 @@ export function DashboardHome() {
     }
   }
 
-  // Group ads by property type
-  const groupedAds = (() => {
-    const groups: Record<string, any[]> = {}
-    for (const ad of ads) {
-      const type = ad.property_type || "autre"
-      if (!groups[type]) groups[type] = []
-      groups[type].push(ad)
-    }
-    return groups
-  })()
-
-  // Get ordered types that have ads
-  const activeTypes = TYPE_ORDER.filter(type => groupedAds[type]?.length > 0)
-  // Add any types not in TYPE_ORDER
-  const otherTypes = Object.keys(groupedAds).filter(t => !TYPE_ORDER.includes(t) && t !== "autre")
-  const allSections = [...activeTypes, ...otherTypes]
-  // If "autre" exists, add it last
-  if (groupedAds["autre"]?.length > 0) allSections.push("autre")
-
   return (
     <div className="flex flex-col gap-6 anim-fade-up">
       {/* Search + Filter row */}
@@ -227,50 +196,25 @@ export function DashboardHome() {
         </div>
       )}
 
-      {/* Sections by type — Gallery style cards */}
+      {/* Single grid — no sections by type */}
       {!loading && !error && ads.length > 0 && (
-        <div className="flex flex-col gap-12">
-          {allSections.map((type, sectionIdx) => (
-            <div key={type} className="flex flex-col gap-4">
-              {/* Section header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-[16px] font-bold text-foreground">
-                    {TYPE_LABELS[type] || type.charAt(0).toUpperCase() + type.slice(1)}
-                  </h3>
-                  <span className="text-[12px] font-normal text-muted-foreground">
-                    {groupedAds[type].length} {groupedAds[type].length > 1 ? "annonces" : "annonce"}
-                  </span>
-                </div>
-                <button
-                  onClick={() => setActiveTag(type)}
-                  className="text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Voir tout →
-                </button>
-              </div>
-
-              {/* Gallery cards grid */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, 288px)",
-                  gap: "24px",
-                  justifyContent: "center",
-                  width: "100%",
-                }}
-              >
-                {groupedAds[type].map((ad, i) => (
-                  <PropertyPackageCard
-                    key={ad.ad_id || ad.id}
-                    ad={ad}
-                    index={sectionIdx * 10 + i}
-                    liked={likedAds.has(ad.ad_id || ad.id)}
-                    onLike={(e) => toggleLike(ad.ad_id || ad.id, e)}
-                  />
-                ))}
-              </div>
-            </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, 288px)",
+            gap: "24px",
+            justifyContent: "center",
+            width: "100%",
+          }}
+        >
+          {ads.map((ad, i) => (
+            <PropertyPackageCard
+              key={ad.ad_id || ad.id}
+              ad={ad}
+              index={i}
+              liked={likedAds.has(ad.ad_id || ad.id)}
+              onLike={(e) => toggleLike(ad.ad_id || ad.id, e)}
+            />
           ))}
         </div>
       )}
