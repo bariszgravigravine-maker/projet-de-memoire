@@ -4,6 +4,16 @@ import { useEffect, useRef } from "react"
 import * as maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
 
+// Contournement d'un bug de Turbopack (bundler de Next.js) qui empêche le
+// Web Worker de maplibre-gl de se charger correctement (imports internes
+// non réécrits). Sans worker, la carte reste bloquée sur son style de fond
+// et n'affiche jamais aucune tuile. On pointe donc vers une copie du worker
+// vendorisée dans public/maplibre (voir scripts/sync-maplibre-worker.mjs).
+// Voir: https://github.com/vercel/next.js/issues/98137
+if (typeof window !== "undefined") {
+  maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs")
+}
+
 interface PropertyMapProps {
   properties: Array<{
     ad_id?: string
