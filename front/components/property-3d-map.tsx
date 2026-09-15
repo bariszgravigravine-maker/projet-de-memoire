@@ -31,27 +31,39 @@ function normalizeCity(name?: string) {
     .toLowerCase()
 }
 
-interface Property3DMapProps {
-  properties: Array<{
-    ad_id?: string
-    id?: string
-    title?: string
-    price?: number
-    latitude?: number
-    longitude?: number
-    city?: string
-    district?: string
-    photos?: Array<any>
-  }>
-  onMarkerClick?: (id: string) => void
+interface PropertyMapItem {
+  ad_id?: string
+  id?: string
+  title?: string
+  price?: number
+  latitude?: number
+  longitude?: number
+  city?: string
+  district?: string
+  bedrooms?: number
+  bathrooms?: number
+  photos?: Array<any>
 }
 
-export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps) {
+interface Property3DMapProps {
+  properties: PropertyMapItem[]
+  onMarkerClick?: (id: string) => void
+  /** Bien ciblé : affiche ma position + l'itinéraire tracé + fiche overlay */
+  destination?: PropertyMapItem | null
+  onCloseRoute?: () => void
+  onViewProperty?: (id: string) => void
+}
+
+export function Property3DMap({ properties, onMarkerClick, destination, onCloseRoute, onViewProperty }: Property3DMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<maplibregl.Marker[]>([])
+  const userMarkerRef = useRef<maplibregl.Marker | null>(null)
+  const userPosRef = useRef<[number, number] | null>(null)
   const [mapError, setMapError] = useState<string | null>(null)
   const [mapReady, setMapReady] = useState(false)
+  const [routeInfo, setRouteInfo] = useState<{ km: number; min: number } | null>(null)
+  const [routeLoading, setRouteLoading] = useState(false)
 
   // Initialize map once
   useEffect(() => {
@@ -185,12 +197,37 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
           },
           labelLayerId
         )
+
+        // Icône flèche (►) dessinée sur canvas — utilisée par la couche
+        // "route-arrows" pour indiquer la direction à suivre le long du tracé
+        if (!map.hasImage("route-arrow")) {
+          const s = 64
+          const c = document.createElement("canvas")
+          c.width = s
+          c.height = s
+          const ctx = c.getContext("2d")!
+          ctx.translate(s / 2, s / 2)
+          ctx.beginPath()
+          ctx.moveTo(20, 0)
+          ctx.lineTo(-14, -16)
+          ctx.lineTo(-6, 0)
+          ctx.lineTo(-14, 16)
+          ctx.closePath()
+          ctx.fillStyle = "#1d4ed8"
+          ctx.fill()
+          ctx.lineWidth = 4
+          ctx.strokeStyle = "#ffffff"
+          ctx.stroke()
+          map.addImage("route-arrow", ctx.getImageData(0, 0, s, s))
+        }
       } catch (e: any) {
         console.warn("[Map] Couche 3D non disponible:", e?.message || e)
       }
     })
 
     mapRef.current = map
+    // Exposé pour faciliter le diagnostic (console navigateur / tests CDP)
+    if (typeof window !== "undefined") (window as any).__nestfindMap = map
 
     return () => {
       map.remove()
@@ -198,6 +235,176 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
       setMapReady(false)
     }
   }, [])
+
+  // ── Ma position : point bleu pulsant sur la carte ──
+  const showUserMarker = useCallback(() => {
+    const map = mapRef.current
+    const pos = userPosRef.current
+    if (!map || !pos) return
+    if (!userMarkerRef.current) {
+      const el = document.createElement("div")
+      el.style.cssText = `
+        width: 18px;
+        height: 18px;
+        background: #2563eb;
+        border: 3px solid #ffffff;
+        border-radius: 50%;
+        box-shadow: 0 0 0 7px rgba(37, 99, 235, 0.28), 0 2px 6px rgba(0,0,0,0.35);
+      `
+      el.title = "Ma position"
+      userMarkerRef.current = new maplibregl.Marker({ element: el })
+        .setLngLat(pos)
+        .addTo(map)
+    } else {
+      userMarkerRef.current.setLngLat(pos)
+    }
+  }, [])
+
+  // Récupère la position de l'utilisateur dès que possible
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        userPosRef.current = [pos.coords.longitude, pos.coords.latitude]
+        const map = mapRef.current
+        if (map?.loaded()) showUserMarker()
+        else map?.once("load", showUserMarker)
+      },
+      () => {},
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+    )
+  }, [showUserMarker])
+
+  // ── Itinéraire : tracé + flèches de direction vers le bien sélectionné ──
+  const clearRoute = useCallback(() => {
+    const map = mapRef.current
+    if (!map) return
+    for (const id of ["route-arrows", "route-line", "route-casing"]) {
+      if (map.getLayer(id)) map.removeLayer(id)
+    }
+    if (map.getSource("route")) map.removeSource("route")
+    setRouteInfo(null)
+  }, [])
+
+  const drawRoute = useCallback(async () => {
+    const map = mapRef.current
+    if (!map) return
+    clearRoute()
+
+    const dLng = Number(destination?.longitude)
+    const dLat = Number(destination?.latitude)
+    if (!destination || isNaN(dLng) || isNaN(dLat)) return
+
+    // Origine : ma position réelle si dispo, sinon le centre actuel de la carte
+    const origin: [number, number] = userPosRef.current ?? [
+      map.getCenter().lng,
+      map.getCenter().lat,
+    ]
+    const dest: [number, number] = [dLng, dLat]
+
+    setRouteLoading(true)
+    let coords: [number, number][] = []
+    let km: number | null = null
+    let min: number | null = null
+    try {
+      // API publique OSRM (itinéraire routier) — pas de clé requise.
+      // Timeout 8s : si le service est lent/injoignable on trace une ligne
+      // droite plutôt que de laisser l'utilisateur attendre.
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 8000)
+      const res = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${origin[0]},${origin[1]};${dest[0]},${dest[1]}?overview=full&geometries=geojson`,
+        { signal: ctrl.signal }
+      )
+      clearTimeout(timer)
+      const json = await res.json()
+      const r = json?.routes?.[0]
+      if (r?.geometry?.coordinates?.length) {
+        coords = r.geometry.coordinates
+        km = r.distance / 1000
+        min = r.duration / 60
+      }
+    } catch {}
+    // Repli : ligne droite si le service d'itinéraire est indisponible
+    if (!coords.length) coords = [origin, dest]
+    setRouteLoading(false)
+
+    // La destination peut avoir changé pendant le fetch
+    if (!map.getCanvas()) return
+
+    map.addSource("route", {
+      type: "geojson",
+      data: {
+        type: "Feature",
+        properties: {},
+        geometry: { type: "LineString", coordinates: coords },
+      },
+    })
+
+    const labelLayerId = map
+      .getStyle()
+      ?.layers?.find((l: any) => l.type === "symbol" && l.layout?.["text-field"])?.id
+
+    map.addLayer(
+      {
+        id: "route-casing",
+        type: "line",
+        source: "route",
+        paint: { "line-color": "#ffffff", "line-width": 9, "line-opacity": 0.95 },
+        layout: { "line-cap": "round", "line-join": "round" },
+      },
+      labelLayerId
+    )
+    map.addLayer(
+      {
+        id: "route-line",
+        type: "line",
+        source: "route",
+        paint: { "line-color": "#1d4ed8", "line-width": 5 },
+        layout: { "line-cap": "round", "line-join": "round" },
+      },
+      labelLayerId
+    )
+    // Flèches ► espacées le long du tracé, orientées vers la destination
+    map.addLayer(
+      {
+        id: "route-arrows",
+        type: "symbol",
+        source: "route",
+        minzoom: 8,
+        layout: {
+          "symbol-placement": "line",
+          "symbol-spacing": 90,
+          "icon-image": "route-arrow",
+          "icon-size": 0.55,
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-rotation-alignment": "map",
+          "icon-pitch-alignment": "map",
+        },
+      },
+      labelLayerId
+    )
+
+    setRouteInfo(km != null && min != null ? { km, min } : null)
+
+    const b = new maplibregl.LngLatBounds()
+    b.extend(origin)
+    b.extend(dest)
+    coords.forEach((c) => b.extend(c))
+    map.fitBounds(b, {
+      padding: { top: 140, bottom: 160, left: 140, right: 140 },
+      pitch: 60,
+      duration: 900,
+    })
+  }, [destination, clearRoute])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (map.loaded()) drawRoute()
+    else map.once("load", drawRoute)
+  }, [drawRoute])
 
   // Update markers when properties change
   const updateMarkers = useCallback(() => {
@@ -349,6 +556,15 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
     }
   }, [updateMarkers])
 
+  // Données de la fiche overlay du bien ciblé par l'itinéraire
+  const destPhotos = Array.isArray(destination?.photos)
+    ? destination!.photos.map((p: any) => p?.url || p).filter(Boolean)
+    : []
+  const destImg = destPhotos[0] || "/images/house-1.jpg"
+  const destPrice = destination?.price
+    ? `${Number(destination.price).toLocaleString("fr-FR")} FCFA`
+    : ""
+
   return (
     <>
       <div
@@ -361,6 +577,126 @@ export function Property3DMap({ properties, onMarkerClick }: Property3DMapProps)
           background: "#e5e7eb",
         }}
       />
+
+      {/* ── Mini-fiche overlay : photo + infos du bien + itinéraire ── */}
+      {destination && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "24px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 20,
+            width: "270px",
+            borderRadius: "16px",
+            overflow: "hidden",
+            background: "rgba(255,255,255,0.97)",
+            backdropFilter: "blur(8px)",
+            boxShadow: "0 12px 32px rgba(0,0,0,0.28)",
+            fontFamily: "system-ui, -apple-system, sans-serif",
+          }}
+        >
+          <div style={{ position: "relative", height: "120px" }}>
+            <img
+              src={destImg}
+              alt={destination.title || "Bien"}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              onError={(e) => {
+                const el = e.currentTarget
+                if (!el.dataset.fb) {
+                  el.dataset.fb = "1"
+                  el.src = "/images/house-1.jpg"
+                }
+              }}
+            />
+            <button
+              onClick={() => { clearRoute(); onCloseRoute?.() }}
+              title="Fermer l'itinéraire"
+              style={{
+                position: "absolute",
+                top: "8px",
+                right: "8px",
+                width: "26px",
+                height: "26px",
+                borderRadius: "50%",
+                border: "none",
+                background: "rgba(0,0,0,0.55)",
+                color: "#fff",
+                fontSize: "14px",
+                lineHeight: 1,
+                cursor: "pointer",
+              }}
+            >
+              ✕
+            </button>
+            {routeInfo && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "8px",
+                  left: "8px",
+                  background: "rgba(26,26,26,0.9)",
+                  color: "#fff",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  padding: "4px 9px",
+                  borderRadius: "10px",
+                }}
+              >
+                {routeInfo.km.toFixed(1)} km • {Math.round(routeInfo.min)} min
+              </div>
+            )}
+            {routeLoading && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "8px",
+                  left: "8px",
+                  background: "rgba(26,26,26,0.9)",
+                  color: "#fff",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  padding: "4px 9px",
+                  borderRadius: "10px",
+                }}
+              >
+                Itinéraire...
+              </div>
+            )}
+          </div>
+          <div style={{ padding: "10px 12px 12px" }}>
+            <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.3 }}>
+              {destination.title || "Bien"}
+            </p>
+            <p style={{ margin: "3px 0 0", fontSize: "11px", color: "#78716c" }}>
+              {[destination.district, destination.city].filter(Boolean).join(", ")}
+            </p>
+            <div style={{ display: "flex", gap: "10px", marginTop: "5px", fontSize: "11px", color: "#57534e" }}>
+              {destination.bedrooms != null && <span>{destination.bedrooms} ch.</span>}
+              {destination.bathrooms != null && <span>{destination.bathrooms} sdb</span>}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "8px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 800, color: "#1a1a1a" }}>{destPrice}</span>
+              <button
+                onClick={() => onViewProperty?.(destination.ad_id || destination.id || "")}
+                style={{
+                  border: "none",
+                  background: "#1a1a1a",
+                  color: "#fff",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  padding: "7px 12px",
+                  borderRadius: "10px",
+                  cursor: "pointer",
+                }}
+              >
+                Voir le bien
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {mapError && (
         <div style={{
           position: "absolute",

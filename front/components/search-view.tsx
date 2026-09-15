@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send } from "lucide-react"
+import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getAds, agentSearch } from "@/lib/api"
 import { Property3DMap } from "@/components/property-3d-map"
@@ -24,6 +24,7 @@ export function SearchView() {
   const [showFilters, setShowFilters] = useState(false)
   const [showPanel, setShowPanel] = useState(true)
   const [selectedProperty, setSelectedProperty] = useState<any | null>(null)
+  const [routeTarget, setRouteTarget] = useState<any | null>(null)
   const [aiMode, setAiMode] = useState(false)
   const [aiResponse, setAiResponse] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
@@ -44,6 +45,7 @@ export function SearchView() {
       const json = await getAds(params)
       const data = json.data?.results || json.results || []
       setResults(data)
+      setRouteTarget(null)
     } catch (err: any) {
       setResults([])
     } finally {
@@ -82,6 +84,7 @@ export function SearchView() {
     const prop = results.find((r) => (r.ad_id || r.id) === id)
     if (prop) {
       setSelectedProperty(prop)
+      setRouteTarget(prop)
       setShowPanel(true)
     }
   }, [results])
@@ -100,6 +103,9 @@ export function SearchView() {
       <Property3DMap
         properties={results}
         onMarkerClick={handleMarkerClick}
+        destination={routeTarget}
+        onCloseRoute={() => setRouteTarget(null)}
+        onViewProperty={(id) => { if (id) router.push(`/annonce/${id}`) }}
       />
 
       {/* Top bar with back button + search */}
@@ -350,9 +356,23 @@ export function SearchView() {
                         {ad.bedrooms != null && <span>{ad.bedrooms} ch.</span>}
                         {ad.bathrooms != null && <span>{ad.bathrooms} sdb</span>}
                       </div>
-                      <p className="text-sm font-bold text-stone-800 mt-1 truncate">
-                        {formatPrice(ad.price)}
-                      </p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-sm font-bold text-stone-800 truncate">
+                          {formatPrice(ad.price)}
+                        </p>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedProperty(ad)
+                            setRouteTarget(ad)
+                          }}
+                          className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-full bg-stone-800 text-white text-[10px] font-semibold hover:bg-stone-700 transition-colors"
+                          title="Afficher l'itinéraire vers ce bien"
+                        >
+                          <Navigation size={10} />
+                          Itinéraire
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )
