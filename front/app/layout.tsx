@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
-import Script from 'next/script'
 import { AIChatFab } from '@/components/ai-chat-fab'
 import { RealtimeProvider } from '@/components/realtime-provider'
 import './globals.css'
@@ -54,31 +53,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="fr">
       <body className={`${inter.variable} font-sans antialiased`}>
-        <Script
-          id="sw-cleaner"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(regs) {
-                  return Promise.all(regs.map(function(r) { return r.unregister(); }));
-                }).then(function() {
-                  if ('caches' in window) {
-                    return caches.keys().then(function(keys) {
-                      return Promise.all(keys.map(function(k) { return caches.delete(k); }));
-                    });
-                  }
-                }).then(function() {
-                  console.log('[SW] Nettoyage preliminaire effectue');
-                }).catch(function(e) {
-                  console.error('[SW] Erreur nettoyage:', e);
-                });
-              }
-            `,
-          }}
-        />
         <RealtimeProvider>
           {children}
           <AIChatFab />

@@ -170,11 +170,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </div>
       )}
 
-      {/* ── Desktop sidebar nav (hidden on search) ── */}
+      {/* ── Desktop sidebar nav (hidden on search) — matches demo style ── */}
       {!isSearchPage && (
       <nav className="fixed left-0 top-1/2 -translate-y-1/2 hidden xl:flex flex-col items-center gap-2 bg-background/80 backdrop-blur border border-border rounded-2xl p-2 ml-3 shadow-lg z-20">
         {NAV_ITEMS.map(({ id, icon: Icon }) => {
-          const badge = id === "messages" ? rtMessages : id === "liked" ? 3 : 0
+          const badge = id === "messages" ? rtMessages : 0
           return (
           <button
             key={id}
@@ -194,13 +194,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           )
         })}
         <div className="w-6 h-px bg-border my-1" />
-        <button
-          onClick={() => window.location.href = "/mes-annonces"}
-          className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          title="Mes annonces"
-        >
-          <Home size={18} />
-        </button>
         <button
           onClick={() => window.location.href = "/annonce/publier"}
           className="w-10 h-10 flex items-center justify-center rounded-xl bg-foreground text-background hover:bg-foreground/90 transition-colors"
