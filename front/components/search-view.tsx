@@ -153,7 +153,8 @@ export function SearchView() {
       })
       const lon = pos.coords.longitude
       const lat = pos.coords.latitude
-      const radius = 5
+      // Rayon de recherche : 2 km autour de ma position (visibilité maximale)
+      const radius = 2
       // Affiche le point bleu de ma position sur la map
       mapActionsRef.current?.setUserPosition(lon, lat)
       const json = await getAds({
