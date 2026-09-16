@@ -96,11 +96,11 @@ export const AgentAIService = {
       }
     }
 
-    // 3. Si le lieu repère a pu être géocodé, on complète avec les biens dans
-    //    le rayon, puis on fusionne en gardant l'ordre : rayon d'abord.
-    //    IMPORTANT : on part de `searchCriteria` (potentiellement relaxé) et
-    //    on fusionne avec `results` (pas `baseResults` qui peut être vide
-    //    après relaxation) — sinon les résultats relaxés seraient écrasés.
+    // 3. Si le lieu repère a pu être géocodé (ex: "entrée BEAC" → coordonnées
+    //    Yaoundé), les résultats = UNIQUEMENT les biens dans le rayon autour du
+    //    repère. On ne fusionne plus avec les résultats "partout au pays" —
+    //    c'est ce qui rendait "chambre à côté de l'entrée BEAC" imprécis.
+    //    Repli : si le rayon est vide, on garde les résultats de base.
     if (geo) {
       searchCriteria = {
         ...searchCriteria,
@@ -109,7 +109,11 @@ export const AgentAIService = {
         radius: effectiveRadius,
       };
       const nearResults = await AdService.search(searchCriteria);
-      results = mergeResults(nearResults, results);
+      if (nearResults.length > 0) {
+        results = nearResults;
+      } else {
+        console.log(`[Agent] Rayon ${effectiveRadius} km autour de "${near}" vide — repli sur les résultats de base.`);
+      }
     }
 
     // 4. Enregistre l'interaction si l'utilisateur est connecté.
