@@ -84,9 +84,12 @@ ${PREFERENCE_LABELS}
 Règles :
 - "proche de X" / "près de X" / "pas loin de X" où X est un équipement (lycée, hôpital,
   marché, école, transport...) => ajoute le code de préférence correspondant dans
-  "preferences", ET si X contient aussi un lieu géographique ("le lycée de Ngoa-Ekellé"),
-  renseigne ce lieu dans "district" (ou "city" si c'est une ville) et "near".
+  "preferences", ET si X contient aussi un lieu géographique ("le lycée de Ngoa-Ekellé",
+  "le lycée d'Ekounou"), renseigne ce lieu dans "district" (ou "city" si c'est une
+  ville), mets le repère complet dans "near" (ex: "lycée Ekounou Yaoundé") ET
+  radiusKm = 3 pour une recherche géolocalisée autour du repère.
 - "proche de X" où X est uniquement un lieu (quartier/ville) => "near" = X, radiusKm = 5.
+  Renseigne aussi "district" ou "city" si X est un quartier/ville connu.
 - Si plusieurs équipements sont cités, mets plusieurs codes dans "preferences".
 - "moins chère" / "pas cher" => sortBy = "price_asc".
 - Les montants en "millions" doivent être convertis en FCFA (ex: "50 millions" => 50000000).

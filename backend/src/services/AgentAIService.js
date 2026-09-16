@@ -2,6 +2,7 @@ import MistralService from './MistralService.js';
 import AdService from './AdService.js';
 import GeocodingService from './GeocodingService.js';
 import InteractionModel from '../models/InteractionModel.js';
+import { heuristicParse } from '../utils/queryHeuristics.js';
 
 /**
  * Fusionne deux jeux de résultats en dédupliquant par ad_id.
@@ -39,9 +40,22 @@ export const AgentAIService = {
     // 1. Conversion du prompt en critères JSON via Mistral (mis en cache 5 min)
     const criteria = await MistralService.parseSearchQuery(userMessage);
 
+    // "lycée d'Ekounou" : Mistral met parfois le lieu dans `near` sans
+    // remplir `district` → la recherche filtrerait toute la ville. Si `near`
+    // contient un quartier/ville connu, on l'extrait comme garde-fou.
+    if (criteria.near && !criteria.district && !criteria.city) {
+      const { criteria: h } = heuristicParse(criteria.near);
+      if (h.district) criteria.district = h.district;
+      else if (h.city) criteria.city = h.city;
+    }
+
+    // "proche du lycée de X" : `near` peut être posé sans `radiusKm` par
+    // l'IA → on applique un rayon par défaut (3 km) pour géocoder le repère.
+    const effectiveRadius = criteria.radiusKm || (criteria.near ? 3 : null);
+
     // Critères transmis au moteur SQL (on retire les champs non-SQL)
     const { near, radiusKm, explanation, ...sqlCriteria } = criteria;
-    const wantsGeo = Boolean(near && radiusKm);
+    const wantsGeo = Boolean(near && effectiveRadius);
 
     // 2. Géocodage du lieu repère ET recherche par ville/quartier EN PARALLÈLE.
     //    Avant : géocodage (~1 s) puis recherche (~200 ms) en séquentiel.
@@ -83,7 +97,7 @@ export const AgentAIService = {
         ...sqlCriteria,
         centerLat: geo.latitude,
         centerLon: geo.longitude,
-        radius: radiusKm,
+        radius: effectiveRadius,
       };
       const nearResults = await AdService.search(searchCriteria);
       results = mergeResults(nearResults, baseResults);
