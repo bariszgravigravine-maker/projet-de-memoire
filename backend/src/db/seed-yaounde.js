@@ -20,30 +20,30 @@ import bcrypt from 'bcryptjs';
 
 // --- Quartiers de Yaoundé : coordonnées réelles + équipements de proximité ---
 const YAOUNDE_DISTRICTS = {
-  'Bastos':        { lat: 3.8896, lon: 11.5286, prefs: ['centre_ville', 'banque', 'commissariat', 'ecole'] },
+  'Bastos':        { lat: 3.8896, lon: 11.5286, prefs: ['centre_ville', 'banque', 'commissariat', 'lycee'] },
   'Bonas':         { lat: 3.8721, lon: 11.5170, prefs: ['ecole', 'marche', 'eglise'] },
-  'Ngoa-Ekellé':   { lat: 3.8634, lon: 11.5031, prefs: ['universite', 'ecole', 'transport', 'marche'] },
+  'Ngoa-Ekellé':   { lat: 3.8634, lon: 11.5031, prefs: ['lycee', 'universite', 'ecole', 'transport'] },
   'Mvan':          { lat: 3.8339, lon: 11.5333, prefs: ['transport', 'marche', 'pharmacie'] },
   'Ekie':          { lat: 3.8556, lon: 11.5089, prefs: ['ecole', 'marche', 'pharmacie'] },
-  'Mfandena':      { lat: 3.8778, lon: 11.4967, prefs: ['ecole', 'marche', 'transport'] },
+  'Mfandena':      { lat: 3.8778, lon: 11.4967, prefs: ['lycee', 'ecole', 'marche'] },
   'Omnisport':     { lat: 3.8861, lon: 11.4900, prefs: ['espace_vert', 'salle_sport', 'transport'] },
   'Etoudi':        { lat: 3.9008, lon: 11.5028, prefs: ['hopital', 'marche', 'transport'] },
-  'Tsinga':        { lat: 3.8778, lon: 11.5100, prefs: ['ecole', 'hopital', 'mosquee'] },
-  'Ekounou':       { lat: 3.8342, lon: 11.5394, prefs: ['marche', 'transport', 'ecole'] },
-  'Mvog-Mbi':      { lat: 3.8583, lon: 11.5250, prefs: ['marche', 'ecole', 'eglise'] },
+  'Tsinga':        { lat: 3.8778, lon: 11.5100, prefs: ['lycee', 'ecole', 'hopital'] },
+  'Ekounou':       { lat: 3.8342, lon: 11.5394, prefs: ['lycee', 'marche', 'transport'] },
+  'Mvog-Mbi':      { lat: 3.8583, lon: 11.5250, prefs: ['lycee', 'marche', 'eglise'] },
   'Mvog-Ada':      { lat: 3.8606, lon: 11.5206, prefs: ['marche', 'transport', 'eglise'] },
   'Briqueterie':   { lat: 3.8833, lon: 11.5083, prefs: ['centre_ville', 'banque', 'pharmacie'] },
   'Mokolo':        { lat: 3.8833, lon: 11.5000, prefs: ['marche', 'transport', 'centre_ville'] },
   'Nlongkak':      { lat: 3.8778, lon: 11.5153, prefs: ['centre_ville', 'banque', 'eglise'] },
   'Essos':         { lat: 3.8833, lon: 11.5250, prefs: ['hopital', 'pharmacie', 'ecole'] },
   'Mendong':       { lat: 3.8300, lon: 11.5000, prefs: ['transport', 'marche', 'ecole'] },
-  'Odza':          { lat: 3.8100, lon: 11.5400, prefs: ['ecole', 'marche', 'transport'] },
+  'Odza':          { lat: 3.8100, lon: 11.5400, prefs: ['lycee', 'ecole', 'marche'] },
   'Awae':          { lat: 3.9200, lon: 11.5500, prefs: ['ecole', 'espace_vert', 'marche'] },
   'Emana':         { lat: 3.8250, lon: 11.5600, prefs: ['marche', 'transport', 'eglise'] },
-  'Nkolbisson':    { lat: 3.8800, lon: 11.4500, prefs: ['universite', 'marche', 'transport'] },
+  'Nkolbisson':    { lat: 3.8800, lon: 11.4500, prefs: ['lycee', 'universite', 'transport'] },
   'Nsimeyong':     { lat: 3.8550, lon: 11.4950, prefs: ['ecole', 'marche', 'mosquee'] },
   'Damas':         { lat: 3.8450, lon: 11.5450, prefs: ['ecole', 'marche', 'eglise'] },
-  'Nkol-Eton':     { lat: 3.8680, lon: 11.4880, prefs: ['transport', 'marche', 'pharmacie'] },
+  'Nkol-Eton':     { lat: 3.8680, lon: 11.4880, prefs: ['lycee', 'transport', 'marche'] },
 };
 
 const CITY = 'Yaoundé';
@@ -157,14 +157,29 @@ const PREF_NOTES = {
   salle_sport: 'Salle de sport dans le quartier',
 };
 
+// --- Générateur pseudo-aléatoire DÉTERMINISTE (mulberry32) ---
+// Indispensable : sans graine fixe, chaque exécution produirait des biens
+// différents et le contrôle d'idempotence (titre + ville) ne matcherait plus,
+// ce qui dupliquerait les données à chaque lancement du seeder.
+function createRng(seed) {
+  let a = seed >>> 0;
+  return function next() {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rng = createRng(20260916);
+
 // --- Utilitaires ---
-const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const randFloat = (min, max) => Math.random() * (max - min) + min;
+const rand = (arr) => arr[Math.floor(rng() * arr.length)];
+const randInt = (min, max) => Math.floor(rng() * (max - min + 1)) + min;
+const randFloat = (min, max) => rng() * (max - min) + min;
 
 function pickType() {
   const total = Object.values(TYPE_WEIGHTS).reduce((a, b) => a + b, 0);
-  let r = Math.random() * total;
+  let r = rng() * total;
   for (const [t, w] of Object.entries(TYPE_WEIGHTS)) {
     if (r < w) return t;
     r -= w;
@@ -284,8 +299,7 @@ async function seedYaounde() {
         const price = randPrice(type);
 
         // 2 à 3 préférences cohérentes avec le quartier (+ 1 aléatoire parfois)
-        const pool_ = [...info.prefs];
-        const shuffled = pool_.sort(() => Math.random() - 0.5);
+        const shuffled = [...info.prefs].sort(() => rng() - 0.5);
         const chosen = shuffled.slice(0, randInt(2, Math.min(3, shuffled.length)));
 
         biens.push({
@@ -314,13 +328,34 @@ async function seedYaounde() {
     for (const b of biens) {
       // Idempotence : même titre + même ville => déjà présent
       const exists = await pool.query(
-        `SELECT a.id FROM ads a
+        `SELECT p.id AS property_id FROM ads a
          JOIN properties p ON a.property_id = p.id
          WHERE a.title = $1 AND p.city = $2
          LIMIT 1`,
         [b.title, b.city]
       );
-      if (exists.rows.length > 0) { skipped++; continue; }
+      if (exists.rows.length > 0) {
+        // Le bien existe déjà. On garantit quand même que ses préférences de
+        // proximité sont à jour : si on enrichit la liste d'un quartier, un
+        // nouveau passage du seeder complète les biens existants.
+        if (hasPrefs) {
+          const existingPropId = exists.rows[0].property_id;
+          for (const code of b.prefs) {
+            const prefId = prefByCode.get(code);
+            if (!prefId) continue;
+            const linked = await pool.query(
+              `INSERT INTO property_preferences (property_id, pref_id, note, distance_m)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (property_id, pref_id) DO NOTHING
+               RETURNING property_id`,
+              [existingPropId, prefId, PREF_NOTES[code] || null, randInt(80, 1800)]
+            );
+            if (linked.rows.length > 0) prefLinks++;
+          }
+        }
+        skipped++;
+        continue;
+      }
 
       const propRes = await pool.query(
         `INSERT INTO properties (owner_id, property_type, area, bedrooms, bathrooms, address, district, city, latitude, longitude, status)
@@ -376,7 +411,36 @@ async function seedYaounde() {
       inserted++;
     }
 
-    // --- 5) Favoris de démonstration pour les nouveaux particuliers ---
+    // --- 5) Convergence : chaque bien de Yaoundé reçoit les préférences de
+    //        son quartier, même s'il a été créé par un autre seeder. C'est
+    //        cette étape qui garantit la cohérence de la recherche IA
+    //        ("proche du lycée de Ngoa-Ekellé") sur toute la base.
+    let synced = 0;
+    if (hasPrefs) {
+      for (const [district, info] of Object.entries(YAOUNDE_DISTRICTS)) {
+        const props = await pool.query(
+          `SELECT id FROM properties WHERE city = $1 AND unaccent(district) ILIKE unaccent($2)`,
+          [CITY, district]
+        );
+        for (const prop of props.rows) {
+          for (const code of info.prefs) {
+            const prefId = prefByCode.get(code);
+            if (!prefId) continue;
+            const linked = await pool.query(
+              `INSERT INTO property_preferences (property_id, pref_id, note, distance_m)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (property_id, pref_id) DO NOTHING
+               RETURNING property_id`,
+              [prop.id, prefId, PREF_NOTES[code] || null, randInt(150, 1800)]
+            );
+            if (linked.rows.length > 0) synced++;
+          }
+        }
+      }
+    }
+    console.log(`[DB] ${synced} préférence(s) ajoutée(s) par convergence sur les biens existants.`);
+
+    // --- 6) Favoris de démonstration pour les nouveaux particuliers ---
     const recentAds = await pool.query(
       `SELECT a.id FROM ads a
        JOIN properties p ON a.property_id = p.id
@@ -388,7 +452,7 @@ async function seedYaounde() {
     const adIds = recentAds.rows.map((r) => r.id);
     let favCount = 0;
     for (const uid of userIds) {
-      const picks = adIds.sort(() => Math.random() - 0.5).slice(0, randInt(1, 3));
+      const picks = [...adIds].sort(() => rng() - 0.5).slice(0, randInt(1, 3));
       for (const adId of picks) {
         await pool.query(
           `INSERT INTO favorites (user_id, ad_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
