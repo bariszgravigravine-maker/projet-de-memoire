@@ -135,7 +135,8 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
         pitch: 60, // Vue 3D inclinée
         bearing: -17,
         maxPitch: 85,
-        antialias: true,
+        // Depuis MapLibre v5, l'antialiasing se règle via canvasContextAttributes
+        canvasContextAttributes: { antialias: true },
       })
     } catch (err: any) {
       console.error("[Map] Erreur d'initialisation:", err)

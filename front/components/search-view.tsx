@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation, LocateFixed, Crosshair, ChevronRight, Bed, Bath } from "lucide-react"
+import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation, LocateFixed, Crosshair, ChevronRight, Bed, Bath, GripHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getAds, agentSearch } from "@/lib/api"
 import { Property3DMap } from "@/components/property-3d-map"
@@ -46,8 +46,37 @@ export function SearchView() {
   // Infos d'itinéraire remontées par Property3DMap (km, durée)
   const [routeInfo, setRouteInfo] = useState<{ km: number; min: number } | null>(null)
   const [routeInfoLoading, setRouteInfoLoading] = useState(false)
+  // Déplacement de la card overlay (drag libre depuis le handle/poignée)
+  const [cardOffset, setCardOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
   const hasFetchedRef = useRef(false)
   const mapActionsRef = useRef<MapActions | null>(null)
+
+  // Drag : démarre le suivi du pointeur (souris + tactile)
+  const onCardDragStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      baseX: cardOffset.x,
+      baseY: cardOffset.y,
+    }
+    const onMove = (ev: PointerEvent) => {
+      const d = dragRef.current
+      if (!d) return
+      setCardOffset({
+        x: d.baseX + ev.clientX - d.startX,
+        y: d.baseY + ev.clientY - d.startY,
+      })
+    }
+    const onUp = () => {
+      dragRef.current = null
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+    }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+  }, [cardOffset])
 
   const handleMapActions = useCallback((actions: MapActions) => {
     mapActionsRef.current = actions
@@ -218,6 +247,7 @@ export function SearchView() {
     const prop = results.find((r) => (r.ad_id || r.id) === id)
     if (prop) {
       setSelectedProperty(prop)
+      setCardOffset({ x: 0, y: 0 }) // recentre la card sur le nouveau bien
       // Ne trace pas l'itinéraire automatiquement, juste sélectionne
     }
   }, [results])
@@ -235,6 +265,7 @@ export function SearchView() {
     setRouteTarget(null)
     setRouteInfo(null)
     setRouteInfoLoading(false)
+    setCardOffset({ x: 0, y: 0 })
   }, [])
 
   const formatPrice = (price: any) => {
@@ -374,7 +405,7 @@ export function SearchView() {
 
           {/* Recherche par place (zoome sur un lieu précis) */}
           <button
-            onClick={handlePlaceSearch}
+            onClick={() => handlePlaceSearch()}
             disabled={loading || !query.trim()}
             className={cn(
               "flex items-center gap-1.5 text-sm font-semibold px-3 py-2.5 rounded-full transition-colors shadow-lg pointer-events-auto shrink-0",
@@ -542,23 +573,29 @@ export function SearchView() {
         </div>
       )}
 
-      {/* OVERLAY CARD style Yango : preview du bien sélectionné en bas de la map */}
+      {/* OVERLAY CARD style Yango : preview du bien sélectionné, déplaçable */}
       {selectedProperty && (
-        <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-auto anim-fade-up">
+        <div
+          className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none"
+          style={{ transform: `translate(${cardOffset.x}px, ${cardOffset.y}px)` }}
+        >
           {/* Bouton fermer flottant au-dessus de la card */}
-          <div className="flex justify-center mb-2">
+          <div className="flex justify-center mb-1.5 pointer-events-auto">
             <button
               onClick={handleCloseCard}
-              className="w-9 h-9 flex items-center justify-center rounded-full bg-white shadow-lg hover:bg-stone-50 transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-lg hover:bg-stone-50 transition-colors"
               title="Fermer"
             >
-              <X size={18} className="text-stone-700" />
+              <X size={16} className="text-stone-700" />
             </button>
           </div>
 
-          <div className="mx-3 mb-3 sm:mx-auto sm:max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-stone-100">
-            {/* Image du bien */}
-            <div className="relative h-44 bg-stone-100">
+          <div className="mx-3 mb-3 sm:mx-auto sm:max-w-xs bg-white rounded-2xl shadow-2xl overflow-hidden border border-stone-100 pointer-events-auto">
+            {/* Image du bien (zone de drag) */}
+            <div
+              onPointerDown={onCardDragStart}
+              className="relative h-28 bg-stone-100 cursor-grab active:cursor-grabbing select-none touch-none"
+            >
               {(() => {
                 const photos = Array.isArray(selectedProperty.photos)
                   ? selectedProperty.photos.map((p: any) => p?.url || p).filter(Boolean)
@@ -580,38 +617,42 @@ export function SearchView() {
                 )
               })()}
               {/* Badge prix en overlay sur l'image */}
-              <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-stone-900/90 backdrop-blur text-white text-sm font-bold shadow-lg">
+              <div className="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-stone-900/90 backdrop-blur text-white text-xs font-bold shadow-lg">
                 {formatPrice(selectedProperty.price)}
               </div>
               {/* Badge type en overlay */}
-              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur text-stone-800 text-xs font-semibold shadow-lg capitalize">
+              <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-white/90 backdrop-blur text-stone-800 text-[10px] font-semibold shadow-lg capitalize">
                 {selectedProperty.property_type || ""}
+              </div>
+              {/* Poignée de déplacement */}
+              <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-white/85 backdrop-blur shadow flex items-center justify-center">
+                <GripHorizontal size={14} className="text-stone-500" />
               </div>
             </div>
 
             {/* Contenu de la card */}
-            <div className="p-4 space-y-3">
+            <div className="px-3 py-2.5 space-y-2">
               <div>
-                <h3 className="text-base font-bold text-stone-900 leading-tight line-clamp-1">
+                <h3 className="text-sm font-bold text-stone-900 leading-tight line-clamp-1">
                   {selectedProperty.title}
                 </h3>
-                <p className="text-sm text-stone-500 mt-0.5 flex items-center gap-1">
-                  <MapPin size={13} className="shrink-0" />
+                <p className="text-xs text-stone-500 mt-0.5 flex items-center gap-1">
+                  <MapPin size={12} className="shrink-0" />
                   {[selectedProperty.district, selectedProperty.city].filter(Boolean).join(", ")}
                 </p>
               </div>
 
               {/* Caractéristiques */}
-              <div className="flex items-center gap-4 text-sm text-stone-600">
+              <div className="flex items-center gap-3 text-xs text-stone-600">
                 {selectedProperty.bedrooms != null && (
                   <span className="flex items-center gap-1">
-                    <Bed size={15} className="text-stone-400" />
+                    <Bed size={13} className="text-stone-400" />
                     {selectedProperty.bedrooms} ch.
                   </span>
                 )}
                 {selectedProperty.bathrooms != null && (
                   <span className="flex items-center gap-1">
-                    <Bath size={15} className="text-stone-400" />
+                    <Bath size={13} className="text-stone-400" />
                     {selectedProperty.bathrooms} sdb
                   </span>
                 )}
@@ -624,17 +665,17 @@ export function SearchView() {
               </div>
 
               {/* Actions : Itinéraire + Voir détail */}
-              <div className="flex gap-2 pt-1">
+              <div className="flex gap-2">
                 <button
                   onClick={handleRoute}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold transition-colors",
+                    "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors",
                     routeTarget?.ad_id === selectedProperty.ad_id
                       ? "bg-emerald-600 text-white"
                       : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                   )}
                 >
-                  <Navigation size={16} />
+                  <Navigation size={14} />
                   {routeInfoLoading && routeTarget?.ad_id === selectedProperty.ad_id
                     ? "Calcul…"
                     : routeInfo && routeTarget?.ad_id === selectedProperty.ad_id
@@ -645,10 +686,10 @@ export function SearchView() {
                 </button>
                 <button
                   onClick={() => router.push(`/annonce/${selectedProperty.ad_id || selectedProperty.id}`)}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-stone-900 text-white text-sm font-semibold hover:bg-stone-800 transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-stone-900 text-white text-xs font-semibold hover:bg-stone-800 transition-colors"
                 >
                   Voir le bien
-                  <ChevronRight size={16} />
+                  <ChevronRight size={14} />
                 </button>
               </div>
             </div>
