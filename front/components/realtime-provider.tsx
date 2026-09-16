@@ -39,11 +39,17 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     const token = typeof window !== "undefined" ? localStorage.getItem("immo_token") : null
     if (!token) return
 
+    // En production sur Vercel, les rewrites HTTP peuvent proxier le transport
+    // "polling" de socket.io vers le VPS, mais PAS les websockets (wss://).
+    // On force donc "polling" en production ; en local le websocket fonctionne.
+    const isProd = process.env.NODE_ENV === "production"
     const s = io(SOCKET_URL, {
       auth: { token },
-      transports: ["websocket", "polling"],
-      reconnection: true,
+      path: "/socket.io",
+      transports: isProd ? ["polling"] : ["websocket", "polling"],
+      reconnectionAttempts: 5,
       reconnectionDelay: 3000,
+      timeout: 8000,
     })
 
     setSocket(s)
@@ -55,6 +61,11 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     s.on("disconnect", () => {
       console.log("[WS] Déconnecté")
+      setConnected(false)
+    })
+
+    // Évite le spam console quand le serveur socket est injoignable
+    s.on("connect_error", () => {
       setConnected(false)
     })
 

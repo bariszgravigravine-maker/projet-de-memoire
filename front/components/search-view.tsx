@@ -20,6 +20,7 @@ interface MapActions {
   flyToProperty: (lat: number, lon: number, title?: string) => void
   flyToZone: (lat: number, lon: number, radiusKm?: number) => void
   getUserPosition: () => [number, number] | null
+  setUserPosition: (lon: number, lat: number) => void
 }
 
 export function SearchView() {
@@ -66,6 +67,8 @@ export function SearchView() {
       const lon = pos.coords.longitude
       const lat = pos.coords.latitude
       const radius = 5
+      // Affiche le point bleu de ma position sur la map
+      mapActionsRef.current?.setUserPosition(lon, lat)
       const json = await getAds({
         centerLat: lat,
         centerLon: lon,

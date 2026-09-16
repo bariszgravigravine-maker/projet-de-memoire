@@ -57,6 +57,7 @@ interface Property3DMapProps {
     flyToProperty: (lat: number, lon: number, title?: string) => void
     flyToZone: (lat: number, lon: number, radiusKm?: number) => void
     getUserPosition: () => [number, number] | null
+    setUserPosition: (lon: number, lat: number) => void
   }) => void
 }
 
@@ -111,16 +112,8 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
     )
   }, [])
 
-  // Expose flyTo functions to parent via onMapActions callback
-  useEffect(() => {
-    if (onMapActions) {
-      onMapActions({
-        flyToProperty,
-        flyToZone,
-        getUserPosition: () => userPosRef.current,
-      })
-    }
-  }, [flyToProperty, flyToZone, onMapActions])
+  // Définit la position de l'utilisateur (appelée par le parent, ex: recherche par zone).
+  // Implémentation déclarée après showUserMarker plus bas.
 
   // Initialize map once
   useEffect(() => {
@@ -150,6 +143,12 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
       "top-right"
     )
     map.addControl(new maplibregl.ScaleControl(), "bottom-left")
+
+    // Fournit une image transparente pour les icônes absentes du sprite
+    // MapTiler (ex: "office_11") au lieu de spammer la console d'erreurs
+    if (typeof (map as any).setMissingStyleImageResolver === "function") {
+      ;(map as any).setMissingStyleImageResolver(() => new ImageData(1, 1))
+    }
 
     map.on("error", (e: any) => {
       console.error("[Map] Erreur:", e.error?.message || e.message || e)
@@ -316,6 +315,26 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
       userMarkerRef.current.setLngLat(pos)
     }
   }, [])
+
+  // Définit la position de l'utilisateur (appelée par le parent, ex: recherche par zone)
+  const setUserPosition = useCallback((lon: number, lat: number) => {
+    userPosRef.current = [lon, lat]
+    const map = mapRef.current
+    if (map?.loaded()) showUserMarker()
+    else map?.once("load", showUserMarker)
+  }, [showUserMarker])
+
+  // Expose flyTo functions to parent via onMapActions callback
+  useEffect(() => {
+    if (onMapActions) {
+      onMapActions({
+        flyToProperty,
+        flyToZone,
+        getUserPosition: () => userPosRef.current,
+        setUserPosition,
+      })
+    }
+  }, [flyToProperty, flyToZone, setUserPosition, onMapActions])
 
   // Récupère la position de l'utilisateur dès que possible
   useEffect(() => {
