@@ -22,15 +22,6 @@ const CITY_ZOOM = 15.6
 // (voir minzoom de la couche "3d-buildings" plus bas).
 const MIN_BUILDING_ZOOM = 14.8
 
-function normalizeCity(name?: string) {
-  if (!name) return ""
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase()
-}
-
 interface PropertyMapItem {
   ad_id?: string
   id?: string
@@ -676,26 +667,9 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
 
     const map = mapRef.current
 
-    // On cible la ville qui regroupe le plus de résultats plutôt que de
-    // cadrer sur l'ensemble des biens (qui peuvent être dispersés dans
-    // plusieurs villes du pays) : sinon la caméra dézoome trop loin et les
-    // immeubles 3D deviennent invisibles (ils n'existent qu'à partir du
-    // zoom "ville", voir minzoom de la couche "3d-buildings").
-    const byCity = new Map<string, typeof validProps>()
-    for (const prop of validProps) {
-      const key = normalizeCity(prop.city)
-      const arr = byCity.get(key)
-      if (arr) arr.push(prop)
-      else byCity.set(key, [prop])
-    }
-    let focusProps = validProps
-    let maxCount = 0
-    for (const arr of byCity.values()) {
-      if (arr.length > maxCount) {
-        maxCount = arr.length
-        focusProps = arr
-      }
-    }
+    // Après une recherche, la carte doit cadrer TOUS les résultats : zoom ou
+    // dézoom pour que chaque bien soit visible à l'écran (demande utilisateur).
+    const focusProps = validProps
 
     const focusBounds = new maplibregl.LngLatBounds()
     focusProps.forEach((p) => focusBounds.extend([p.longitude!, p.latitude!]))

@@ -53,6 +53,12 @@ export const AgentAIService = {
     // l'IA → on applique un rayon par défaut (3 km) pour géocoder le repère.
     const effectiveRadius = criteria.radiusKm || (criteria.near ? 3 : null);
 
+    // Concentration Yaoundé : si la requête ne contient AUCUN repère
+    // géographique (pas de ville, quartier ni lieu), on restreint la recherche
+    // à Yaoundé — la base de démonstration est centrée dessus.
+    const noGeo = !criteria.city && !criteria.district && !criteria.near;
+    if (noGeo) criteria.city = 'Yaoundé';
+
     // Critères transmis au moteur SQL (on retire les champs non-SQL)
     const { near, radiusKm, explanation, ...sqlCriteria } = criteria;
     const wantsGeo = Boolean(near && effectiveRadius);
