@@ -403,6 +403,7 @@ RÈGLES CRITIQUES :
 
     const userContent = `Demande utilisateur: "${userMessage}"
 Critères extraits: ${JSON.stringify(criteria)}
+${criteria._relaxed ? `NOTE: la recherche a été ÉLARGIE car aucun bien ne correspondait strictement. Critères relâchés: ${criteria._relaxed}. Dis-le poliment à l'utilisateur.` : ''}
 Résultats (${results.length} au total):
 ${resultsSummary}`;
 

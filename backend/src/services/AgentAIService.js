@@ -54,6 +54,27 @@ export const AgentAIService = {
 
     let results = baseResults;
     let searchCriteria = sqlCriteria;
+    let relaxed = null;
+
+    // Relaxation progressive : si 0 résultat, on retire d'abord le `type`
+    // (le critère le plus souvent trop restrictif, ex: "appartement" dans un
+    // quartier où il n'y a que des maisons), puis le `district`.
+    if (results.length === 0 && sqlCriteria.type) {
+      const { type, ...withoutType } = sqlCriteria;
+      results = await AdService.search(withoutType);
+      if (results.length > 0) {
+        searchCriteria = withoutType;
+        relaxed = 'type';
+      }
+    }
+    if (results.length === 0 && sqlCriteria.district) {
+      const { type, district, ...withoutDistrict } = sqlCriteria;
+      results = await AdService.search(withoutDistrict);
+      if (results.length > 0) {
+        searchCriteria = withoutDistrict;
+        relaxed = relaxed ? 'type+district' : 'district';
+      }
+    }
 
     // 3. Si le lieu repère a pu être géocodé, on complète avec les biens dans
     //    le rayon, puis on fusionne en gardant l'ordre : rayon d'abord.
@@ -78,8 +99,13 @@ export const AgentAIService = {
       );
     }
 
-    // 5. Réponse conversationnelle formatée par Mistral
-    const response = await MistralService.buildSearchResponse(userMessage, results, criteria);
+    // 5. Réponse conversationnelle formatée par Mistral.
+    //    Si des critères ont été relâchés, on le précise dans le contexte pour
+    //    que l'IA puisse dire "j'ai élargi la recherche".
+    const criteriaForResponse = relaxed
+      ? { ...criteria, _relaxed: relaxed }
+      : criteria;
+    const response = await MistralService.buildSearchResponse(userMessage, results, criteriaForResponse);
 
     return {
       criteria,
@@ -88,6 +114,8 @@ export const AgentAIService = {
       count: results.length,
       // Indique au front si la recherche a été restreinte à un rayon géographique
       geocoded: Boolean(geo),
+      // Critères relâchés (ex: "type", "type+district") si recherche élargie
+      relaxed,
       explanation: explanation || null,
     };
   },
