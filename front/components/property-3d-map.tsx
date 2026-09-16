@@ -565,9 +565,16 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
         ? `${Number(prop.price).toLocaleString("fr-FR")} FCFA`
         : ""
 
-      // Custom HTML marker with price badge
-      const el = document.createElement("div")
-      el.style.cssText = `
+      // Custom HTML marker with price badge.
+      // IMPORTANT : maplibre applique `transform: translate(...)` sur l'élément
+      // racine du marker pour le positionner. Si on anime `transform` au survol,
+      // on écrase ce translate et le badge "fuit" (boucle mouseenter/leave).
+      // Solution : wrapper racine (positionné par maplibre) + badge interne qui scale.
+      const wrapper = document.createElement("div")
+      wrapper.style.cssText = "pointer-events: auto; cursor: pointer;"
+
+      const badge = document.createElement("div")
+      badge.style.cssText = `
         background: rgba(26, 26, 26, 0.95);
         color: white;
         padding: 4px 10px;
@@ -575,25 +582,27 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
         font-size: 11px;
         font-weight: 700;
         white-space: nowrap;
-        cursor: pointer;
         box-shadow: 0 3px 8px rgba(0,0,0,0.35);
         border: 2px solid white;
-        transition: transform 0.2s ease;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
         max-width: 80px;
         overflow: hidden;
         text-overflow: ellipsis;
-        pointer-events: auto;
+        transform-origin: center bottom;
       `
-      el.textContent = prop.price ? `${(prop.price / 1000).toFixed(0)}k FCFA` : "Voir"
-      el.addEventListener("mouseenter", () => {
-        el.style.transform = "scale(1.15)"
-        el.style.zIndex = "1000"
+      badge.textContent = prop.price ? `${(prop.price / 1000).toFixed(0)}k FCFA` : "Voir"
+      badge.addEventListener("mouseenter", () => {
+        badge.style.transform = "scale(1.18)"
+        badge.style.boxShadow = "0 6px 16px rgba(0,0,0,0.45)"
+        wrapper.style.zIndex = "1000"
       })
-      el.addEventListener("mouseleave", () => {
-        el.style.transform = "scale(1)"
-        el.style.zIndex = ""
+      badge.addEventListener("mouseleave", () => {
+        badge.style.transform = "scale(1)"
+        badge.style.boxShadow = "0 3px 8px rgba(0,0,0,0.35)"
+        wrapper.style.zIndex = ""
       })
-      el.addEventListener("click", () => {
+      badge.addEventListener("click", (ev) => {
+        ev.stopPropagation()
         const id = prop.ad_id || prop.id || ""
         if (id && onMarkerClick) onMarkerClick(id)
         // Zoom vers le bien cliqué (style Yango : la caméra suit le marqueur)
@@ -609,6 +618,8 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
           })
         }
       })
+      wrapper.appendChild(badge)
+      const el = wrapper
 
       const popup = new maplibregl.Popup({
         offset: 30,
