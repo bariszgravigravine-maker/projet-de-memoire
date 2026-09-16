@@ -52,18 +52,75 @@ interface Property3DMapProps {
   destination?: PropertyMapItem | null
   onCloseRoute?: () => void
   onViewProperty?: (id: string) => void
+  /** Expose les actions de carte (flyToProperty, flyToZone) au parent */
+  onMapActions?: (actions: {
+    flyToProperty: (lat: number, lon: number, title?: string) => void
+    flyToZone: (lat: number, lon: number, radiusKm?: number) => void
+    getUserPosition: () => [number, number] | null
+  }) => void
 }
 
-export function Property3DMap({ properties, onMarkerClick, destination, onCloseRoute, onViewProperty }: Property3DMapProps) {
+export function Property3DMap({ properties, onMarkerClick, destination, onCloseRoute, onViewProperty, onMapActions }: Property3DMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<maplibregl.Marker[]>([])
   const userMarkerRef = useRef<maplibregl.Marker | null>(null)
   const userPosRef = useRef<[number, number] | null>(null)
+  const destMarkerRef = useRef<maplibregl.Marker | null>(null)
+  const placeMarkerRef = useRef<maplibregl.Marker | null>(null)
   const [mapError, setMapError] = useState<string | null>(null)
   const [mapReady, setMapReady] = useState(false)
   const [routeInfo, setRouteInfo] = useState<{ km: number; min: number } | null>(null)
   const [routeLoading, setRouteLoading] = useState(false)
+
+  // Fly to a specific property (place search) with a destination pin
+  const flyToProperty = useCallback((lat: number, lon: number, title?: string) => {
+    const map = mapRef.current
+    if (!map) return
+    placeMarkerRef.current?.remove()
+    const el = document.createElement("div")
+    el.innerHTML = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 3px 4px rgba(0,0,0,0.4));">
+      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z" fill="#dc2626" stroke="white" stroke-width="1.5"/>
+    </svg>`
+    el.style.cssText = "cursor: pointer; pointer-events: auto;"
+    if (title) el.title = title
+    placeMarkerRef.current = new maplibregl.Marker({ element: el, anchor: "bottom" })
+      .setLngLat([lon, lat])
+      .addTo(map)
+    map.flyTo({
+      center: [lon, lat],
+      zoom: 17,
+      pitch: 65,
+      bearing: 0,
+      duration: 1200,
+      essential: true,
+    })
+  }, [])
+
+  // Fit map to a zone around user position (zone search)
+  const flyToZone = useCallback((lat: number, lon: number, radiusKm: number = 5) => {
+    const map = mapRef.current
+    if (!map) return
+    const deg = radiusKm / 111
+    map.fitBounds(
+      [
+        [lon - deg, lat - deg],
+        [lon + deg, lat + deg],
+      ],
+      { pitch: 60, duration: 1000, padding: 80 }
+    )
+  }, [])
+
+  // Expose flyTo functions to parent via onMapActions callback
+  useEffect(() => {
+    if (onMapActions) {
+      onMapActions({
+        flyToProperty,
+        flyToZone,
+        getUserPosition: () => userPosRef.current,
+      })
+    }
+  }, [flyToProperty, flyToZone, onMapActions])
 
   // Initialize map once
   useEffect(() => {
@@ -360,7 +417,7 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
         id: "route-line",
         type: "line",
         source: "route",
-        paint: { "line-color": "#1d4ed8", "line-width": 5 },
+        paint: { "line-color": "#16a34a", "line-width": 6 },
         layout: { "line-cap": "round", "line-join": "round" },
       },
       labelLayerId
@@ -397,6 +454,23 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
       pitch: 60,
       duration: 900,
     })
+
+    // Destination pin marker (red pin icon)
+    destMarkerRef.current?.remove()
+    const destEl = document.createElement("div")
+    destEl.innerHTML = `<svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 3px 4px rgba(0,0,0,0.4));">
+      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z" fill="#dc2626" stroke="white" stroke-width="1.5"/>
+    </svg>`
+    destEl.style.cssText = "cursor: pointer; pointer-events: auto;"
+    destEl.addEventListener("click", () => {
+      if (destination && onViewProperty) {
+        const id = destination.ad_id || destination.id
+        if (id) onViewProperty(id)
+      }
+    })
+    destMarkerRef.current = new maplibregl.Marker({ element: destEl, anchor: "bottom" })
+      .setLngLat(dest)
+      .addTo(map)
   }, [destination, clearRoute])
 
   useEffect(() => {

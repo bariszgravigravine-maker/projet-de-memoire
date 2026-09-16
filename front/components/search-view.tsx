@@ -2,14 +2,20 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation } from "lucide-react"
+import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation, LocateFixed, Crosshair } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getAds, agentSearch } from "@/lib/api"
 import { Property3DMap } from "@/components/property-3d-map"
 import { Skeleton } from "@/components/skeleton"
 
-const POPULAR_CITIES = ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Garoua", "Kribi", "Buea", "Limbe"]
+const POPULAR_CITIES = ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Garoua", "Kribi", "Buea", "Limbe", "Bertoua", "Maroua", "Ngaoundéré", "Ebolowa"]
 const PROPERTY_TYPES = ["Tous", "maison", "appartement", "studio", "chambre", "villa", "terrain", "bureau"]
+
+interface MapActions {
+  flyToProperty: (lat: number, lon: number, title?: string) => void
+  flyToZone: (lat: number, lon: number, radiusKm?: number) => void
+  getUserPosition: () => [number, number] | null
+}
 
 export function SearchView() {
   const router = useRouter()
@@ -28,7 +34,90 @@ export function SearchView() {
   const [aiMode, setAiMode] = useState(false)
   const [aiResponse, setAiResponse] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
+  const [zoneLoading, setZoneLoading] = useState(false)
+  const [zoneInfo, setZoneInfo] = useState<string | null>(null)
   const hasFetchedRef = useRef(false)
+  const mapActionsRef = useRef<MapActions | null>(null)
+
+  const handleMapActions = useCallback((actions: MapActions) => {
+    mapActionsRef.current = actions
+  }, [])
+
+  // Zone search: biens autour de ma position GPS en temps réel
+  const handleZoneSearch = useCallback(async () => {
+    setZoneLoading(true)
+    setZoneInfo(null)
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        if (!navigator.geolocation) return reject(new Error("Geolocation non supporté"))
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        })
+      })
+      const lon = pos.coords.longitude
+      const lat = pos.coords.latitude
+      // Rayon de recherche : 5 km autour de ma position
+      const radius = 5
+      const json = await getAds({
+        centerLat: lat,
+        centerLon: lon,
+        radius,
+      })
+      const data = json.data?.results || json.results || []
+      setResults(data)
+      setSearched(true)
+      setRouteTarget(null)
+      mapActionsRef.current?.flyToZone(lat, lon, radius)
+      setZoneInfo(`${data.length} bien(s) dans un rayon de ${radius} km autour de vous`)
+    } catch (err: any) {
+      setZoneInfo(err?.message || "Impossible d'obtenir votre position. Activez la géolocalisation.")
+    } finally {
+      setZoneLoading(false)
+    }
+  }, [])
+
+  // Place search : tape un lieu ou bien et zoome dessus avec un marqueur
+  const handlePlaceSearch = useCallback(async () => {
+    const q = query.trim()
+    if (!q) return
+    setLoading(true)
+    setSearched(true)
+    setZoneInfo(null)
+    try {
+      // 1) Cherche dans les annonces existantes
+      const json = await getAds({ city: q })
+      const data = json.data?.results || json.results || []
+      setResults(data)
+      setRouteTarget(null)
+      // 2) Si on a un résultat exact, zoome dessus avec un marqueur pin
+      const match = data.find((p: any) =>
+        p &&
+        ((p.city && p.city.toLowerCase().includes(q.toLowerCase())) ||
+         (p.district && p.district.toLowerCase().includes(q.toLowerCase())) ||
+         (p.title && p.title.toLowerCase().includes(q.toLowerCase())))
+      )
+      if (match && match.latitude != null && match.longitude != null) {
+        mapActionsRef.current?.flyToProperty(
+          Number(match.latitude),
+          Number(match.longitude),
+          match.title
+        )
+      } else if (data.length > 0 && data[0].latitude != null) {
+        // Sinon zoome sur le premier résultat
+        mapActionsRef.current?.flyToProperty(
+          Number(data[0].latitude),
+          Number(data[0].longitude),
+          data[0].title
+        )
+      }
+    } catch (err: any) {
+      setResults([])
+    } finally {
+      setLoading(false)
+    }
+  }, [query])
 
   const handleSearch = useCallback(async () => {
     setLoading(true)
@@ -106,6 +195,7 @@ export function SearchView() {
         destination={routeTarget}
         onCloseRoute={() => setRouteTarget(null)}
         onViewProperty={(id) => { if (id) router.push(`/annonce/${id}`) }}
+        onMapActions={handleMapActions}
       />
 
       {/* Top bar with back button + search */}
@@ -162,6 +252,36 @@ export function SearchView() {
             <span className="hidden sm:inline">IA</span>
           </button>
 
+          {/* Recherche par zone (autour de ma position GPS) */}
+          <button
+            onClick={handleZoneSearch}
+            disabled={zoneLoading}
+            className={cn(
+              "flex items-center gap-1.5 text-sm font-semibold px-3 py-2.5 rounded-full transition-colors shadow-lg pointer-events-auto shrink-0",
+              zoneLoading
+                ? "bg-emerald-500 text-white animate-pulse"
+                : "bg-emerald-600 text-white hover:bg-emerald-700"
+            )}
+            title="Rechercher les biens autour de ma position"
+          >
+            <LocateFixed size={14} />
+            <span className="hidden sm:inline">{zoneLoading ? "Localisation..." : "Zone"}</span>
+          </button>
+
+          {/* Recherche par place (zoome sur un lieu précis) */}
+          <button
+            onClick={handlePlaceSearch}
+            disabled={loading || !query.trim()}
+            className={cn(
+              "flex items-center gap-1.5 text-sm font-semibold px-3 py-2.5 rounded-full transition-colors shadow-lg pointer-events-auto shrink-0",
+              "bg-stone-800 text-white hover:bg-stone-700 disabled:opacity-40"
+            )}
+            title="Localiser ce lieu précis sur la carte"
+          >
+            <Crosshair size={14} />
+            <span className="hidden sm:inline">Place</span>
+          </button>
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={cn(
@@ -173,6 +293,19 @@ export function SearchView() {
             <span className="hidden sm:inline">Filtres</span>
           </button>
         </div>
+
+        {/* Zone info banner */}
+        {zoneInfo && (
+          <div className="mx-4 mt-2 max-w-2xl pointer-events-auto anim-fade-up">
+            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 shadow-lg flex items-start gap-2">
+              <LocateFixed size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-emerald-800 flex-1">{zoneInfo}</p>
+              <button onClick={() => setZoneInfo(null)} className="text-emerald-400 hover:text-emerald-600 shrink-0">
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* AI Response banner */}
         {aiResponse && (

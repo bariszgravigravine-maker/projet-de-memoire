@@ -5,6 +5,14 @@ import UserModel from '../models/UserModel.js';
 import GeocodingService from './GeocodingService.js';
 import NotificationService from './NotificationService.js';
 import SearchCriteriaModel from '../models/SearchCriteriaModel.js';
+import CloudinaryService from './CloudinaryService.js';
+
+/**
+ * Détecte si une URL de photo est une data URL base64 (à uploader vers Cloudinary).
+ */
+function isDataUrl(str) {
+  return typeof str === 'string' && str.startsWith('data:image');
+}
 
 /**
  * Service de gestion des biens et annonces.
@@ -12,6 +20,7 @@ import SearchCriteriaModel from '../models/SearchCriteriaModel.js';
 export const AdService = {
   /**
    * Publie une annonce avec géocodage automatique de l'adresse.
+   * Les photos base64 sont uploadées vers Cloudinary si configuré.
    */
   async publish(ownerId, data) {
     const { title, description, price, type, area, bedrooms, bathrooms, address, district, city, latitude, longitude, photos } = data;
@@ -49,10 +58,17 @@ export const AdService = {
       longitude: lon,
     });
 
-    // Photos
+    // Photos : upload Cloudinary si base64, sinon on garde l'URL telle quelle
     if (photos && photos.length > 0) {
       for (let i = 0; i < photos.length; i++) {
-        await PhotoModel.create({ propertyId: property.id, url: photos[i], displayOrder: i });
+        let photoUrl = photos[i];
+        if (isDataUrl(photoUrl)) {
+          const uploaded = await CloudinaryService.uploadImage(photoUrl, {
+            folder: `nestfind/properties/${property.id}`,
+          });
+          if (uploaded) photoUrl = uploaded;
+        }
+        await PhotoModel.create({ propertyId: property.id, url: photoUrl, displayOrder: i });
       }
     }
 
