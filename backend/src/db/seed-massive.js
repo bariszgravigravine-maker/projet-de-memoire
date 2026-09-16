@@ -228,9 +228,9 @@ async function seedMassive() {
 
       const propRes = await pool.query(
         `INSERT INTO properties (owner_id, property_type, area, bedrooms, bathrooms, address, district, city, latitude, longitude, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, 'ACTIF')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'ACTIF')
          RETURNING id`,
-        [b.owner, b.type, b.area, b.beds, b.baths, b.district, b.city, b.lat, b.lon]
+        [b.owner, b.type, b.area, b.beds, b.baths, b.district, b.district, b.city, b.lat, b.lon]
       );
       const propId = propRes.rows[0].id;
 
