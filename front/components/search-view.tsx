@@ -302,9 +302,13 @@ export function SearchView() {
   }, [handleSearch])
 
   // Quand on clique sur un marqueur de la map → affiche l'overlay card (style Yango)
+  // et on ne garde QUE ce marqueur (les autres badges disparaissent).
   const handleMarkerClick = useCallback((id: string) => {
     const prop = results.find((r) => (r.ad_id || r.id) === id)
     if (prop) {
+      // properties passe à [prop] : empêche updateMarkers de re-cadrer la
+      // vue, le flyTo du marqueur (zoom 17) garde le contrôle de la caméra.
+      mapActionsRef.current?.setSuppressAutoFit(true)
       setSelectedProperty(prop)
       setCardOffset({ x: 0, y: 0 }) // recentre la card sur le nouveau bien
       // Ne trace pas l'itinéraire automatiquement, juste sélectionne
@@ -314,9 +318,8 @@ export function SearchView() {
   // Trace l'itinéraire vers le bien sélectionné (depuis l'overlay card)
   const handleRoute = useCallback(() => {
     if (selectedProperty) {
-      // En mode itinéraire, seul le bien ciblé reste sur la carte : on
-      // empêche updateMarkers de re-cadrer la vue (la route fait fitBounds).
-      mapActionsRef.current?.setSuppressAutoFit(true)
+      // properties est déjà [selectedProperty] depuis le clic : pas de
+      // changement de liste, pas besoin de flag suppressAutoFit ici.
       setRouteTarget(selectedProperty)
     }
   }, [selectedProperty])
@@ -348,10 +351,10 @@ export function SearchView() {
   return (
     <div className="fixed inset-0 w-full h-full overflow-hidden">
       {/* Full-screen 3D Map */}
-      {/* En mode itinéraire, seul le bien ciblé garde son marqueur : */}
-      {/* les autres badges disparaissent pour désencombrer la carte. */}
+      {/* Dès qu'un bien est sélectionné (card ouverte) ou en itinéraire, */}
+      {/* seul son marqueur reste : la carte est désencombrée. */}
       <Property3DMap
-        properties={routeTarget ? [routeTarget] : results}
+        properties={selectedProperty ? [selectedProperty] : results}
         onMarkerClick={handleMarkerClick}
         destination={routeTarget}
         onCloseRoute={() => setRouteTarget(null)}
