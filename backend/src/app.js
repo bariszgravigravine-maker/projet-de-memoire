@@ -16,6 +16,12 @@ import { pool } from './config/db.js';
  */
 const app = express();
 
+// Derrière Nginx (reverse proxy en production), Express doit faire confiance
+// au premier proxy pour récupérer la vraie IP cliente dans X-Forwarded-For.
+// Sans cela, express-rate-limit compte toutes les requêtes sur une seule IP
+// (celle de Nginx) et peut bloquer l'ensemble des utilisateurs.
+app.set('trust proxy', 1);
+
 // --- Sécurité & middlewares globaux ---
 app.use(helmet());
 app.use(cors({ origin: config.cors.origin, credentials: true }));
