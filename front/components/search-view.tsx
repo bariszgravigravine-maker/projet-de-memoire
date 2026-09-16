@@ -21,6 +21,7 @@ interface MapActions {
   flyToZone: (lat: number, lon: number, radiusKm?: number) => void
   getUserPosition: () => [number, number] | null
   setUserPosition: (lon: number, lat: number) => void
+  setSuppressAutoFit: (v: boolean) => void
 }
 
 export function SearchView() {
@@ -42,11 +43,20 @@ export function SearchView() {
   const [zoneLoading, setZoneLoading] = useState(false)
   const [zoneInfo, setZoneInfo] = useState<string | null>(null)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  // Infos d'itinéraire remontées par Property3DMap (km, durée)
+  const [routeInfo, setRouteInfo] = useState<{ km: number; min: number } | null>(null)
+  const [routeInfoLoading, setRouteInfoLoading] = useState(false)
   const hasFetchedRef = useRef(false)
   const mapActionsRef = useRef<MapActions | null>(null)
 
   const handleMapActions = useCallback((actions: MapActions) => {
     mapActionsRef.current = actions
+  }, [])
+
+  // Reçoit les infos d'itinéraire de la carte (km/min calculés par OSRM)
+  const handleRouteInfo = useCallback((info: { km: number; min: number } | null, loading: boolean) => {
+    setRouteInfo(info)
+    setRouteInfoLoading(loading)
   }, [])
 
   // Zone search: biens autour de ma position GPS en temps réel
@@ -75,6 +85,9 @@ export function SearchView() {
         radius,
       })
       const data = json.data?.results || json.results || []
+      // Empêche updateMarkers de re-fitter sur la ville dominante afin que
+      // flyToZone puisse conserver la vue centrée sur la position GPS.
+      mapActionsRef.current?.setSuppressAutoFit(true)
       setResults(data)
       setSearched(true)
       mapActionsRef.current?.flyToZone(lat, lon, radius)
@@ -88,8 +101,9 @@ export function SearchView() {
 
   // Place search : tape un lieu/quartier/ville et zoome dessus avec un marqueur pin
   // Cherche à la fois par ville ET par quartier (Bastos est un quartier, pas une ville)
-  const handlePlaceSearch = useCallback(async () => {
-    const q = query.trim()
+  // searchQuery optionnel : évite la closure périmée depuis les suggestions et chips
+  const handlePlaceSearch = useCallback(async (searchQuery?: string) => {
+    const q = (searchQuery ?? query).trim()
     if (!q) return
     setLoading(true)
     setSearched(true)
@@ -215,10 +229,12 @@ export function SearchView() {
     }
   }, [selectedProperty])
 
-  // Ferme l'overlay card
+  // Ferme l'overlay card et nettoie l'itinéraire
   const handleCloseCard = useCallback(() => {
     setSelectedProperty(null)
     setRouteTarget(null)
+    setRouteInfo(null)
+    setRouteInfoLoading(false)
   }, [])
 
   const formatPrice = (price: any) => {
@@ -246,6 +262,7 @@ export function SearchView() {
         onCloseRoute={() => setRouteTarget(null)}
         onViewProperty={(id) => { if (id) router.push(`/annonce/${id}`) }}
         onMapActions={handleMapActions}
+        onRouteInfo={handleRouteInfo}
       />
 
       {/* Top bar with back button + search */}
@@ -275,7 +292,8 @@ export function SearchView() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     setShowSuggestions(false)
-                    aiMode ? handleAiSearch() : handleSearch()
+                    if (aiMode) handleAiSearch()
+                    else handlePlaceSearch()
                   }
                   if (e.key === "Escape") setShowSuggestions(false)
                 }}
@@ -308,10 +326,8 @@ export function SearchView() {
                       onClick={() => {
                         setQuery(s)
                         setShowSuggestions(false)
-                        // Lance automatiquement la recherche par place
-                        setTimeout(() => {
-                          handlePlaceSearch()
-                        }, 50)
+                        // Passe la suggestion directement pour éviter la closure périmée
+                        handlePlaceSearch(s)
                       }}
                       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-stone-50 transition-colors text-left border-b border-stone-50 last:border-0"
                     >
@@ -506,7 +522,7 @@ export function SearchView() {
             {POPULAR_CITIES.map((city) => (
               <button
                 key={city}
-                onClick={() => { setQuery(city); handlePlaceSearch(); }}
+                onClick={() => { setQuery(city); handlePlaceSearch(city); }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/90 backdrop-blur shadow-lg text-sm font-medium text-stone-700 hover:bg-white transition-colors"
               >
                 <MapPin size={14} className="text-stone-500" />
@@ -619,7 +635,13 @@ export function SearchView() {
                   )}
                 >
                   <Navigation size={16} />
-                  {routeTarget?.ad_id === selectedProperty.ad_id ? "Itinéraire tracé" : "Itinéraire"}
+                  {routeInfoLoading && routeTarget?.ad_id === selectedProperty.ad_id
+                    ? "Calcul…"
+                    : routeInfo && routeTarget?.ad_id === selectedProperty.ad_id
+                    ? `${routeInfo.km.toFixed(1)} km · ${Math.round(routeInfo.min)} min`
+                    : routeTarget?.ad_id === selectedProperty.ad_id
+                    ? "Tracé"
+                    : "Itinéraire"}
                 </button>
                 <button
                   onClick={() => router.push(`/annonce/${selectedProperty.ad_id || selectedProperty.id}`)}

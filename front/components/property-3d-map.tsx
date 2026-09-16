@@ -48,20 +48,23 @@ interface PropertyMapItem {
 interface Property3DMapProps {
   properties: PropertyMapItem[]
   onMarkerClick?: (id: string) => void
-  /** Bien ciblé : affiche ma position + l'itinéraire tracé + fiche overlay */
+  /** Bien ciblé : itinéraire tracé vers ce bien */
   destination?: PropertyMapItem | null
   onCloseRoute?: () => void
   onViewProperty?: (id: string) => void
-  /** Expose les actions de carte (flyToProperty, flyToZone) au parent */
+  /** Expose les actions de carte au parent (flyTo, zone, position, autoFit) */
   onMapActions?: (actions: {
     flyToProperty: (lat: number, lon: number, title?: string) => void
     flyToZone: (lat: number, lon: number, radiusKm?: number) => void
     getUserPosition: () => [number, number] | null
     setUserPosition: (lon: number, lat: number) => void
+    setSuppressAutoFit: (v: boolean) => void
   }) => void
+  /** Appelé quand l'itinéraire est calculé (km, durée) ou annulé */
+  onRouteInfo?: (info: { km: number; min: number } | null, loading: boolean) => void
 }
 
-export function Property3DMap({ properties, onMarkerClick, destination, onCloseRoute, onViewProperty, onMapActions }: Property3DMapProps) {
+export function Property3DMap({ properties, onMarkerClick, destination, onCloseRoute, onViewProperty, onMapActions, onRouteInfo }: Property3DMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<maplibregl.Marker[]>([])
@@ -73,6 +76,8 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
   const [mapReady, setMapReady] = useState(false)
   const [routeInfo, setRouteInfo] = useState<{ km: number; min: number } | null>(null)
   const [routeLoading, setRouteLoading] = useState(false)
+  // Quand true, le prochain updateMarkers ne re-fittera pas les bounds (zone search)
+  const suppressNextAutoFitRef = useRef(false)
 
   // Fly to a specific property (place search) with a destination pin
   const flyToProperty = useCallback((lat: number, lon: number, title?: string) => {
@@ -298,17 +303,47 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
     const pos = userPosRef.current
     if (!map || !pos) return
     if (!userMarkerRef.current) {
-      const el = document.createElement("div")
-      el.style.cssText = `
-        width: 18px;
-        height: 18px;
+      // Injecte l'animation CSS une seule fois dans le <head>
+      if (!document.getElementById("nestfind-map-styles")) {
+        const style = document.createElement("style")
+        style.id = "nestfind-map-styles"
+        style.textContent = `
+          @keyframes nestfind-pulse {
+            0%   { transform: scale(0.85); opacity: 0.9; }
+            70%  { transform: scale(2.5);  opacity: 0;   }
+            100% { transform: scale(2.5);  opacity: 0;   }
+          }
+        `
+        document.head.appendChild(style)
+      }
+
+      const wrapper = document.createElement("div")
+      wrapper.style.cssText = "width: 22px; height: 22px; position: relative; pointer-events: none;"
+      wrapper.title = "Ma position"
+
+      // Anneau pulsant
+      const pulse = document.createElement("div")
+      pulse.style.cssText = `
+        position: absolute; inset: -6px;
+        background: rgba(37, 99, 235, 0.28);
+        border-radius: 50%;
+        animation: nestfind-pulse 2s ease-out infinite;
+      `
+
+      // Point bleu central
+      const dot = document.createElement("div")
+      dot.style.cssText = `
+        position: absolute; inset: 0;
         background: #2563eb;
         border: 3px solid #ffffff;
         border-radius: 50%;
-        box-shadow: 0 0 0 7px rgba(37, 99, 235, 0.28), 0 2px 6px rgba(0,0,0,0.35);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.35);
       `
-      el.title = "Ma position"
-      userMarkerRef.current = new maplibregl.Marker({ element: el })
+
+      wrapper.appendChild(pulse)
+      wrapper.appendChild(dot)
+
+      userMarkerRef.current = new maplibregl.Marker({ element: wrapper })
         .setLngLat(pos)
         .addTo(map)
     } else {
@@ -324,7 +359,7 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
     else map?.once("load", showUserMarker)
   }, [showUserMarker])
 
-  // Expose flyTo functions to parent via onMapActions callback
+  // Expose flyTo + autoFit control to parent via onMapActions callback
   useEffect(() => {
     if (onMapActions) {
       onMapActions({
@@ -332,9 +367,15 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
         flyToZone,
         getUserPosition: () => userPosRef.current,
         setUserPosition,
+        setSuppressAutoFit: (v: boolean) => { suppressNextAutoFitRef.current = v },
       })
     }
   }, [flyToProperty, flyToZone, setUserPosition, onMapActions])
+
+  // Remonte les infos d'itinéraire (km/min) au composant parent
+  useEffect(() => {
+    onRouteInfo?.(routeInfo, routeLoading)
+  }, [routeInfo, routeLoading, onRouteInfo])
 
   // Récupère la position de l'utilisateur dès que possible
   useEffect(() => {
@@ -633,7 +674,11 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
       }
     }
 
-    if (focusProps.length > 1) {
+    // Si un suppressAutoFit est actif (ex: après zone search GPS), on ne
+    // re-cible pas la carte afin que flyToZone conserve la vue courante.
+    if (suppressNextAutoFitRef.current) {
+      suppressNextAutoFitRef.current = false
+    } else if (focusProps.length > 1) {
       map.fitBounds(focusBounds, {
         padding: 90,
         maxZoom: 17,
@@ -661,15 +706,6 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
     }
   }, [updateMarkers])
 
-  // Données de la fiche overlay du bien ciblé par l'itinéraire
-  const destPhotos = Array.isArray(destination?.photos)
-    ? destination!.photos.map((p: any) => p?.url || p).filter(Boolean)
-    : []
-  const destImg = destPhotos[0] || "/images/house-1.jpg"
-  const destPrice = destination?.price
-    ? `${Number(destination.price).toLocaleString("fr-FR")} FCFA`
-    : ""
-
   return (
     <>
       <div
@@ -682,125 +718,6 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
           background: "#e5e7eb",
         }}
       />
-
-      {/* ── Mini-fiche overlay : photo + infos du bien + itinéraire ── */}
-      {destination && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "24px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 20,
-            width: "270px",
-            borderRadius: "16px",
-            overflow: "hidden",
-            background: "rgba(255,255,255,0.97)",
-            backdropFilter: "blur(8px)",
-            boxShadow: "0 12px 32px rgba(0,0,0,0.28)",
-            fontFamily: "system-ui, -apple-system, sans-serif",
-          }}
-        >
-          <div style={{ position: "relative", height: "120px" }}>
-            <img
-              src={destImg}
-              alt={destination.title || "Bien"}
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-              onError={(e) => {
-                const el = e.currentTarget
-                if (!el.dataset.fb) {
-                  el.dataset.fb = "1"
-                  el.src = "/images/house-1.jpg"
-                }
-              }}
-            />
-            <button
-              onClick={() => { clearRoute(); onCloseRoute?.() }}
-              title="Fermer l'itinéraire"
-              style={{
-                position: "absolute",
-                top: "8px",
-                right: "8px",
-                width: "26px",
-                height: "26px",
-                borderRadius: "50%",
-                border: "none",
-                background: "rgba(0,0,0,0.55)",
-                color: "#fff",
-                fontSize: "14px",
-                lineHeight: 1,
-                cursor: "pointer",
-              }}
-            >
-              ✕
-            </button>
-            {routeInfo && (
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: "8px",
-                  left: "8px",
-                  background: "rgba(26,26,26,0.9)",
-                  color: "#fff",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  padding: "4px 9px",
-                  borderRadius: "10px",
-                }}
-              >
-                {routeInfo.km.toFixed(1)} km • {Math.round(routeInfo.min)} min
-              </div>
-            )}
-            {routeLoading && (
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: "8px",
-                  left: "8px",
-                  background: "rgba(26,26,26,0.9)",
-                  color: "#fff",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  padding: "4px 9px",
-                  borderRadius: "10px",
-                }}
-              >
-                Itinéraire...
-              </div>
-            )}
-          </div>
-          <div style={{ padding: "10px 12px 12px" }}>
-            <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.3 }}>
-              {destination.title || "Bien"}
-            </p>
-            <p style={{ margin: "3px 0 0", fontSize: "11px", color: "#78716c" }}>
-              {[destination.district, destination.city].filter(Boolean).join(", ")}
-            </p>
-            <div style={{ display: "flex", gap: "10px", marginTop: "5px", fontSize: "11px", color: "#57534e" }}>
-              {destination.bedrooms != null && <span>{destination.bedrooms} ch.</span>}
-              {destination.bathrooms != null && <span>{destination.bathrooms} sdb</span>}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "8px" }}>
-              <span style={{ fontSize: "14px", fontWeight: 800, color: "#1a1a1a" }}>{destPrice}</span>
-              <button
-                onClick={() => onViewProperty?.(destination.ad_id || destination.id || "")}
-                style={{
-                  border: "none",
-                  background: "#1a1a1a",
-                  color: "#fff",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  padding: "7px 12px",
-                  borderRadius: "10px",
-                  cursor: "pointer",
-                }}
-              >
-                Voir le bien
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {mapError && (
         <div style={{
