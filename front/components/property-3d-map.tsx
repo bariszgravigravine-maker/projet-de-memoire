@@ -69,6 +69,10 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
   const [routeLoading, setRouteLoading] = useState(false)
   // Quand true, le prochain updateMarkers ne re-fittera pas les bounds (zone search)
   const suppressNextAutoFitRef = useRef(false)
+  // Signature du jeu de biens affichés (ids+prix) : permet de sauter la
+  // reconstruction complète des marqueurs si le parent re-render avec les
+  // mêmes données (ex: drag de la card => setState à chaque pointermove).
+  const markersSigRef = useRef<string>("")
 
   // Fly to a specific property (place search) with a destination pin
   const flyToProperty = useCallback((lat: number, lon: number, title?: string) => {
@@ -126,6 +130,10 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
         pitch: 60, // Vue 3D inclinée
         bearing: -17,
         maxPitch: 85,
+        // Perf : ne pas re-télécharger les tuiles expirées et afficher les
+        // nouvelles tuiles immédiatement (pas de fondu) => scroll plus réactif
+        refreshExpiredTiles: false,
+        fadeDuration: 0,
         // Depuis MapLibre v5, l'antialiasing se règle via canvasContextAttributes
         canvasContextAttributes: { antialias: true },
       })
@@ -556,34 +564,38 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
   const updateMarkers = useCallback(() => {
     if (!mapRef.current) return
 
-    // Clear old markers
-    markersRef.current.forEach((m) => m.remove())
-    markersRef.current = []
-
     const validProps = properties.filter(
       (p) => p.latitude != null && p.longitude != null
     )
 
+    // Garde anti-recréation : si le jeu de biens est identique (mêmes ids et
+    // prix), on ne reconstruit NI les marqueurs NI la caméra. Sans ça, un
+    // simple re-render du parent recréait les 126 marqueurs DOM et relançait
+    // un fitBounds/flyTo — c'était la cause principale des freezes.
+    const sig = validProps.map((p) => `${p.ad_id || p.id}:${p.price}`).join("|")
+    if (sig === markersSigRef.current) {
+      suppressNextAutoFitRef.current = false
+      return
+    }
+    markersSigRef.current = sig
+
+    // Clear old markers
+    markersRef.current.forEach((m) => m.remove())
+    markersRef.current = []
+
     if (validProps.length === 0) return
 
-    const bounds = new maplibregl.LngLatBounds()
-
     validProps.forEach((prop) => {
-      const photos = Array.isArray(prop.photos)
-        ? prop.photos.map((p: any) => p?.url || p).filter(Boolean)
-        : []
-      const img = photos[0] || "/images/house-1.jpg"
-      const price = prop.price
-        ? `${Number(prop.price).toLocaleString("fr-FR")} FCFA`
-        : ""
-
       // Custom HTML marker with price badge.
       // IMPORTANT : maplibre applique `transform: translate(...)` sur l'élément
       // racine du marker pour le positionner. Si on anime `transform` au survol,
       // on écrase ce translate et le badge "fuit" (boucle mouseenter/leave).
       // Solution : wrapper racine (positionné par maplibre) + badge interne qui scale.
       const wrapper = document.createElement("div")
-      wrapper.style.cssText = "pointer-events: auto; cursor: pointer;"
+      // will-change:transform indique au navigateur que maplibre repositionne
+      // cet élément à chaque frame => le badge est promu sur son propre layer
+      // GPU et le pan/scroll reste fluide (pas de repaint du texte par frame).
+      wrapper.style.cssText = "pointer-events: auto; cursor: pointer; will-change: transform;"
 
       const badge = document.createElement("div")
       badge.style.cssText = `
@@ -633,36 +645,15 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
       wrapper.appendChild(badge)
       const el = wrapper
 
-      const popup = new maplibregl.Popup({
-        offset: 30,
-        closeButton: true,
-        maxWidth: "260px",
-      }).setHTML(`
-        <div style="font-family: system-ui, -apple-system, sans-serif; padding: 0; overflow: hidden; border-radius: 12px;">
-          <div style="width: 100%; height: 110px; overflow: hidden; border-radius: 8px 8px 0 0;">
-            <img src="${img}" alt="${prop.title || "Bien"}" style="width: 100%; height: 100%; object-fit: cover;" />
-          </div>
-          <div style="padding: 8px 12px;">
-            <h3 style="margin: 0 0 4px 0; font-size: 13px; font-weight: 700; color: #1a1a1a; line-height: 1.3;">
-              ${prop.title || "Annonce"}
-            </h3>
-            <p style="margin: 0 0 4px 0; font-size: 12px; font-weight: 700; color: #1a1a1a;">
-              ${price}
-            </p>
-            <p style="margin: 0; font-size: 11px; color: #888;">
-              ${[prop.district, prop.city].filter(Boolean).join(", ")}
-            </p>
-          </div>
-        </div>
-      `)
+      // NB : on ne crée PAS de maplibregl.Popup par marqueur — le clic est
+      // intercepté (stopPropagation) et le détail s'affiche dans la card
+      // overlay du parent. Créer 126 popups jamais ouverts coûtait cher.
 
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([prop.longitude!, prop.latitude!])
-        .setPopup(popup)
         .addTo(mapRef.current!)
 
       markersRef.current.push(marker)
-      bounds.extend([prop.longitude!, prop.latitude!])
     })
 
     const map = mapRef.current

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation, LocateFixed, Crosshair, ChevronRight, Bed, Bath, GripHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -359,6 +359,14 @@ export function SearchView() {
     return `${n} FCFA`
   }
 
+  // Tableau MEMOÏSÉ passé à la carte : sans ça, [selectedProperty] crée un
+  // nouveau tableau à chaque render → updateMarkers recréait les 126 marqueurs
+  // et relançait un flyTo à chaque render (ex: à chaque frame du drag de card).
+  const mapProperties = useMemo(
+    () => (selectedProperty ? [selectedProperty] : results),
+    [selectedProperty, results]
+  )
+
   // Suggestions de lieux pendant la frappe
   const suggestions = query.trim().length > 0
     ? [...POPULAR_CITIES, ...POPULAR_DISTRICTS]
@@ -372,7 +380,7 @@ export function SearchView() {
       {/* Dès qu'un bien est sélectionné (card ouverte) ou en itinéraire, */}
       {/* seul son marqueur reste : la carte est désencombrée. */}
       <Property3DMap
-        properties={selectedProperty ? [selectedProperty] : results}
+        properties={mapProperties}
         onMarkerClick={handleMarkerClick}
         destination={routeTarget}
         onCloseRoute={() => setRouteTarget(null)}

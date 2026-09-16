@@ -1,0 +1,14 @@
+{
+  "name": "nestfind",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NestFind — plateforme immobilière géolocalisée (front Vercel + backend VPS)",
+  "scripts": {
+    "deploy": "node scripts/deploy.js",
+    "deploy:no-push": "node scripts/deploy.js --no-push",
+    "vps": "node scripts/ssh-run.js"
+  },
+  "devDependencies": {
+    "ssh2": "^1.17.0"
+  }
+}
