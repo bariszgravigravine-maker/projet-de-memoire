@@ -6,6 +6,7 @@ import GeocodingService from './GeocodingService.js';
 import NotificationService from './NotificationService.js';
 import SearchCriteriaModel from '../models/SearchCriteriaModel.js';
 import CloudinaryService from './CloudinaryService.js';
+import PreferenceModel from '../models/PreferenceModel.js';
 
 /**
  * Détecte si une URL de photo est une data URL base64 (à uploader vers Cloudinary).
@@ -23,7 +24,7 @@ export const AdService = {
    * Les photos base64 sont uploadées vers Cloudinary si configuré.
    */
   async publish(ownerId, data) {
-    const { title, description, price, type, area, bedrooms, bathrooms, address, district, city, latitude, longitude, photos } = data;
+    const { title, description, price, type, area, bedrooms, bathrooms, address, district, city, latitude, longitude, photos, preferences } = data;
 
     if (!title || !price || !type || !city) {
       const err = new Error('Titre, prix, type et ville sont obligatoires');
@@ -70,6 +71,12 @@ export const AdService = {
         }
         await PhotoModel.create({ propertyId: property.id, url: photoUrl, displayOrder: i });
       }
+    }
+
+    // Préférences de proximité (facultatif) : un bien sans préférence reste
+    // un "bien basique", sinon il est considéré comme "référencé".
+    if (Array.isArray(preferences) && preferences.length > 0) {
+      await PreferenceModel.replaceForProperty(property.id, preferences);
     }
 
     const ad = await AdModel.create({

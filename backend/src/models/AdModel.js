@@ -21,7 +21,14 @@ export const AdModel = {
     const sql = `
       SELECT a.*, p.property_type, p.area, p.bedrooms, p.bathrooms, p.address, p.district, p.city, p.latitude, p.longitude,
              u.id AS owner_id, u.first_name AS owner_first_name, u.last_name AS owner_last_name, u.phone AS owner_phone,
-             u.email AS owner_email
+             u.email AS owner_email,
+             COALESCE(
+               (SELECT json_agg(json_build_object('code', pr.code, 'label', pr.label, 'icon', pr.icon, 'note', pp.note, 'distance_m', pp.distance_m) ORDER BY pr.category, pr.label)
+                FROM property_preferences pp
+                JOIN preferences pr ON pr.pref_id = pp.pref_id
+                WHERE pp.property_id = p.id),
+               '[]'::json
+             ) AS preferences
       FROM ads a
       JOIN properties p ON a.property_id = p.id
       JOIN users u ON a.owner_id = u.id

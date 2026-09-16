@@ -1,20 +1,60 @@
 import axios from 'axios';
+import http from 'http';
+import https from 'https';
 import { config } from '../config/index.js';
+import { PREFERENCE_CATALOG, sanitizePreferenceCodes } from '../constants/preferences.js';
+import { createTtlCache } from '../utils/ttlCache.js';
+import { heuristicParse } from '../utils/queryHeuristics.js';
+
+/**
+ * Client HTTP partagé : la réutilisation des sockets TCP (keep-alive) évite
+ * un handshake TLS à chaque appel Mistral (~100-200 ms gagnés par requête).
+ */
+const httpClient = axios.create({
+  timeout: 15000,
+  httpAgent: new http.Agent({ keepAlive: true, maxSockets: 32 }),
+  httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 32 }),
+});
+
+/**
+ * Cache des analyses de requête (5 min). Une même question posée deux fois
+ * (par le même utilisateur ou un autre) ne rappelle pas Mistral.
+ */
+const parseCache = createTtlCache({ ttlMs: 5 * 60 * 1000, maxSize: 500 });
+
+const PREFERENCE_LABELS = PREFERENCE_CATALOG.map((p) => `- "${p.code}" : ${p.label}`).join('\n');
 
 /**
  * Service Mistral AI — Agent virtuel immobilier.
  *
  * Rôle : convertir un prompt en langage naturel (ex: "cherche moi une maison
- * située à Bonas, 3 chambres, 2 douches, moins chère") en un objet JSON
- * structuré consommable par le moteur de recherche du backend.
+ * proche du lycée de Ngoa-Ekellé, 3 chambres, moins de 50 millions") en un
+ * objet JSON structuré consommable par le moteur de recherche du backend.
  */
 export const MistralService = {
   /**
    * Convertit un message utilisateur en critères de recherche JSON.
+   *
+   * Stratégie en 3 temps (performance) :
+   *  1. cache mémoire → réponse instantanée si la question a déjà été posée ;
+   *  2. appel Mistral en mode JSON (fiable, pas de regex sur du texte libre) ;
+   *  3. repli heuristique local si Mistral échoue/est indisponible.
+   *
    * @param {string} userMessage - Le prompt en langage naturel.
    * @returns {Promise<Object>} Critères structurés.
    */
   async parseSearchQuery(userMessage) {
+    const cacheKey = (userMessage || '').trim().toLowerCase();
+    if (!cacheKey) {
+      const err = new Error('Message vide');
+      err.status = 400;
+      throw err;
+    }
+
+    return parseCache.wrap(cacheKey, () => this._parseSearchQueryUncached(userMessage));
+  },
+
+  async _parseSearchQueryUncached(userMessage) {
     const systemPrompt = `Tu es un assistant immobilier spécialisé dans le marché camerounais.
 Ton rôle est de convertir la demande de l'utilisateur en un objet JSON strictement structuré
 que le backend pourra consommer pour effectuer une recherche en base de données.
@@ -23,23 +63,36 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte additionnel, sans mark
 
 Format attendu :
 {
-  "type": "maison" | "appartement" | "studio" | "chambre" | "villa" | "terrain" | null,
+  "intent": "search",
+  "type": "maison" | "appartement" | "studio" | "chambre" | "villa" | "terrain" | "bureau" | null,
   "city": "nom de la ville" | null,
   "district": "nom du quartier" | null,
-  "near": "lieu repère (ex: ngoa ekele, bonas, bastos)" | null,
+  "near": "lieu repère à géocoder (ex: ngoa ekele, bastos)" | null,
+  "preferences": ["code1", "code2"],
   "bedroomsMin": nombre | null,
   "bathroomsMin": nombre | null,
   "priceMin": nombre | null,
   "priceMax": nombre | null,
   "sortBy": "price_asc" | "price_desc" | "recent" | null,
-  "radiusKm": nombre | null
+  "radiusKm": nombre | null,
+  "explanation": "courte reformulation en français de ce que tu as compris"
 }
 
+CODES DE PRÉFÉRENCES AUTORISÉS (n'utilise QUE ceux-ci) :
+${PREFERENCE_LABELS}
+
 Règles :
-- "moins chère" ou "pas cher" => sortBy = "price_asc"
-- "près de" / "pas loin de" / "proche de" => remplir "near" et mettre radiusKm = 5
-- Si l'utilisateur ne précise pas un champ, mets null.
+- "proche de X" / "près de X" / "pas loin de X" où X est un équipement (lycée, hôpital,
+  marché, école, transport...) => ajoute le code de préférence correspondant dans
+  "preferences", ET si X contient aussi un lieu géographique ("le lycée de Ngoa-Ekellé"),
+  renseigne ce lieu dans "district" (ou "city" si c'est une ville) et "near".
+- "proche de X" où X est uniquement un lieu (quartier/ville) => "near" = X, radiusKm = 5.
+- Si plusieurs équipements sont cités, mets plusieurs codes dans "preferences".
+- "moins chère" / "pas cher" => sortBy = "price_asc".
+- Les montants en "millions" doivent être convertis en FCFA (ex: "50 millions" => 50000000).
+- Si l'utilisateur ne précise pas un champ, mets null (ou [] pour "preferences").
 - Les nombres doivent être des entiers, pas des chaînes.
+- "explanation" doit être une phrase courte et naturelle en français.
 - Ne renvoie aucun texte hors du JSON.`;
 
     const payload = {
@@ -49,16 +102,17 @@ Règles :
         { role: 'user', content: userMessage },
       ],
       temperature: 0.1,
-      max_tokens: 500,
+      max_tokens: 400,
+      // Mode JSON natif de Mistral : évite le parsing fragile de texte libre
+      response_format: { type: 'json_object' },
     };
 
     try {
-      const res = await axios.post(config.mistral.apiUrl, payload, {
+      const res = await httpClient.post(config.mistral.apiUrl, payload, {
         headers: {
           'Authorization': `Bearer ${config.mistral.apiKey}`,
           'Content-Type': 'application/json',
         },
-        timeout: 15000,
       });
 
       const raw = res.data.choices[0].message.content.trim();
@@ -68,11 +122,24 @@ Règles :
         throw new Error('Réponse Mistral sans JSON exploitable');
       }
       const parsed = JSON.parse(jsonMatch[0]);
-      return this.normalizeCriteria(parsed);
+      const criteria = this.normalizeCriteria(parsed);
+      // Si l'IA n'a rien trouvé d'exploitable, on complète avec l'heuristique
+      if (criteria.preferences.length === 0) {
+        const { criteria: h } = heuristicParse(userMessage);
+        if (h.preferences.length > 0) criteria.preferences = h.preferences;
+      }
+      return criteria;
     } catch (err) {
       console.error('[Mistral] Erreur parseSearchQuery:', err.message);
       if (err.response) {
         console.error('[Mistral] Statut:', err.response.status, 'Data:', JSON.stringify(err.response.data));
+      }
+
+      // Repli : analyse locale par mots-clés (aucun appel réseau)
+      const { criteria, signals } = heuristicParse(userMessage);
+      if (signals > 0) {
+        console.warn('[Mistral] Repli heuristique utilisé (IA indisponible).');
+        return this.normalizeCriteria({ ...criteria, explanation: 'Analyse locale (IA indisponible).' });
       }
       throw new Error('Impossible d\'analyser la demande avec l\'IA');
     }
@@ -81,26 +148,33 @@ Règles :
   /**
    * Normalise les critères reçus de Mistral vers le format attendu par PropertyModel.search.
    */
-  normalizeCriteria(raw) {
-    const c = {
+  normalizeCriteria(raw = {}) {
+    return {
       type: raw.type || null,
       city: raw.city || null,
       district: raw.district || null,
       near: raw.near || null,
+      // On ne garde que des codes du catalogue (sécurité + cohérence SQL)
+      preferences: sanitizePreferenceCodes(raw.preferences),
       bedroomsMin: this.toInt(raw.bedroomsMin),
       bathroomsMin: this.toInt(raw.bathroomsMin),
       priceMin: this.toInt(raw.priceMin),
       priceMax: this.toInt(raw.priceMax),
       sortBy: raw.sortBy || null,
       radiusKm: this.toInt(raw.radiusKm),
+      explanation: typeof raw.explanation === 'string' ? raw.explanation : null,
     };
-    return c;
   },
 
   toInt(v) {
     if (v == null) return null;
     const n = parseInt(v, 10);
     return Number.isNaN(n) ? null : n;
+  },
+
+  /** Statistiques du cache (diagnostic / monitoring). */
+  parseCacheStats() {
+    return { size: parseCache.size };
   },
 
   /**
@@ -115,7 +189,7 @@ Ne mentionne pas le prix dans la description. Réponds uniquement avec le texte 
 Ville: ${city}, Quartier: ${district}, Prix: ${price} FCFA`;
 
     try {
-      const res = await axios.post(config.mistral.apiUrl, {
+      const res = await httpClient.post(config.mistral.apiUrl, {
         model: config.mistral.model,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -157,7 +231,7 @@ Ville: ${city}, Quartier: ${district}, Prix: ${price} FCFA`;
     ];
 
     try {
-      const res = await axios.post(config.mistral.apiUrl, {
+      const res = await httpClient.post(config.mistral.apiUrl, {
         model: config.mistral.visionModel,
         messages: [{ role: 'user', content: userContent }],
         temperature: 0.3,
@@ -208,7 +282,7 @@ Ne renvoie aucun texte hors du JSON.`;
     ];
 
     try {
-      const res = await axios.post(config.mistral.apiUrl, {
+      const res = await httpClient.post(config.mistral.apiUrl, {
         model: config.mistral.visionModel,
         messages: [{ role: 'user', content: userContent }],
         temperature: 0.1,
@@ -275,7 +349,7 @@ Résultats de recherche (${results.length} au total) :
 ${resultsSummary}`;
 
     try {
-      const res = await axios.post(config.mistral.apiUrl, {
+      const res = await httpClient.post(config.mistral.apiUrl, {
         model: config.mistral.model,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -320,9 +394,12 @@ RÈGLES CRITIQUES :
 
     const resultsSummary = results.length === 0
       ? 'Aucun bien ne correspond aux critères.'
-      : results.slice(0, 8).map(r =>
-          `- ${r.title} | ${r.price} FCFA | ${r.city}, ${r.district || 'quartier non précisé'} | ${r.bedrooms || 0} chambres`
-        ).join('\n');
+      : results.slice(0, 8).map(r => {
+          const prefs = Array.isArray(r.preferences) && r.preferences.length > 0
+            ? ` | proximité: ${r.preferences.map((p) => p.label || p.code).join(', ')}`
+            : '';
+          return `- ${r.title} | ${r.price} FCFA | ${r.city}, ${r.district || 'quartier non précisé'} | ${r.bedrooms || 0} chambres${prefs}`;
+        }).join('\n');
 
     const userContent = `Demande utilisateur: "${userMessage}"
 Critères extraits: ${JSON.stringify(criteria)}
@@ -330,7 +407,7 @@ Résultats (${results.length} au total):
 ${resultsSummary}`;
 
     try {
-      const res = await axios.post(config.mistral.apiUrl, {
+      const res = await httpClient.post(config.mistral.apiUrl, {
         model: config.mistral.model,
         messages: [
           { role: 'system', content: systemPrompt },

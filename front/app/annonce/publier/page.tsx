@@ -1,10 +1,32 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Upload, X, Plus, Home, Loader2, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { createAd, getToken, generateDescription } from "@/lib/api"
+import { createAd, getToken, generateDescription, listPreferences } from "@/lib/api"
+
+interface PreferenceOption {
+  code: string
+  label: string
+  category?: string
+}
+
+// Repli si l'API des préférences est indisponible
+const FALLBACK_PREFERENCES: PreferenceOption[] = [
+  { code: "ecole", label: "Proche école", category: "education" },
+  { code: "lycee", label: "Proche lycée", category: "education" },
+  { code: "universite", label: "Proche université", category: "education" },
+  { code: "hopital", label: "Proche hôpital", category: "sante" },
+  { code: "pharmacie", label: "Proche pharmacie", category: "sante" },
+  { code: "centre_ville", label: "Proche centre-ville", category: "commodites" },
+  { code: "marche", label: "Proche marché", category: "commodites" },
+  { code: "transport", label: "Proche transport", category: "commodites" },
+  { code: "banque", label: "Proche banque", category: "commodites" },
+  { code: "commissariat", label: "Proche commissariat", category: "securite" },
+  { code: "mosquee", label: "Proche mosquée", category: "spiritualite" },
+  { code: "eglise", label: "Proche église", category: "spiritualite" },
+]
 
 const PROPERTY_TYPES = [
   "maison", "appartement", "studio", "villa", "terrain",
@@ -36,7 +58,36 @@ export default function PublierAnnoncePage() {
     city: "Yaoundé",
   })
 
+  const [prefOptions, setPrefOptions] = useState<PreferenceOption[]>(FALLBACK_PREFERENCES)
+  // Préférences cochées + note libre par préférence (ex: "à 200m du marché")
+  const [prefs, setPrefs] = useState<Record<string, string>>({})
+
   const token = typeof window !== "undefined" ? getToken() : null
+
+  useEffect(() => {
+    let cancelled = false
+    listPreferences()
+      .then((json) => {
+        const list = json?.data?.preferences || json?.preferences
+        if (!cancelled && Array.isArray(list) && list.length > 0) setPrefOptions(list)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  const togglePref = (code: string) => {
+    setPrefs((prev) => {
+      if (code in prev) {
+        const next = { ...prev }
+        delete next[code]
+        return next
+      }
+      return { ...prev, [code]: "" }
+    })
+  }
+
+  const setPrefNote = (code: string, note: string) =>
+    setPrefs((prev) => ({ ...prev, [code]: note }))
 
   const update = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }))
 
@@ -105,6 +156,12 @@ export default function PublierAnnoncePage() {
         district: form.district,
         city: form.city,
         photos,
+        // Préférences de proximité (facultatif) — un bien sans préférence
+        // reste un "bien basique"
+        preferences: Object.entries(prefs).map(([code, note]) => ({
+          code,
+          note: note.trim() || undefined,
+        })),
       })
       router.push("/dashboard")
     } catch (err: any) {
@@ -253,6 +310,59 @@ export default function PublierAnnoncePage() {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+          </div>
+
+          {/* Préférences de proximité */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Proximité <span className="text-muted-foreground font-normal">(optionnel)</span>
+            </label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Sélectionnez ce qui se trouve à proximité du bien. Ces informations alimentent la
+              recherche intelligente (« je cherche un bien proche d'un lycée »).
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {prefOptions.map((p) => {
+                const active = p.code in prefs
+                return (
+                  <button
+                    key={p.code}
+                    type="button"
+                    onClick={() => togglePref(p.code)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
+                      active
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "bg-transparent text-foreground border-border hover:bg-muted"
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Notes libres pour les préférences sélectionnées */}
+            {Object.keys(prefs).length > 0 && (
+              <div className="mt-3 space-y-2">
+                {Object.keys(prefs).map((code) => {
+                  const opt = prefOptions.find((p) => p.code === code)
+                  return (
+                    <div key={code} className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-32 shrink-0 truncate">
+                        {opt?.label || code}
+                      </span>
+                      <input
+                        value={prefs[code]}
+                        onChange={(e) => setPrefNote(code, e.target.value)}
+                        placeholder="Précision (ex: à 200m du marché)"
+                        className="flex-1 rounded-lg border border-input bg-transparent px-3 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Photos */}

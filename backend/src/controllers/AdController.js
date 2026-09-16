@@ -1,6 +1,7 @@
 import { asyncHandler } from '../middlewares/errorHandler.js';
 import { success, created, noContent } from '../utils/response.js';
 import AdService from '../services/AdService.js';
+import { sanitizePreferenceCodes } from '../constants/preferences.js';
 
 export const searchAds = asyncHandler(async (req, res) => {
   const criteria = {
@@ -20,6 +21,16 @@ export const searchAds = asyncHandler(async (req, res) => {
     bathroomsMin: parseInt(req.query.bathroomsMin, 10),
     sortBy: req.query.sortBy,
   };
+
+  // Préférences de proximité : ?preferences=lycee,hopital
+  if (req.query.preferences) {
+    const codes = sanitizePreferenceCodes(String(req.query.preferences).split(','));
+    if (codes.length > 0) criteria.preferences = codes;
+  }
+  // ?hasPreferences=true|false (biens référencés vs biens basiques)
+  if (req.query.hasPreferences === 'true') criteria.hasPreferences = true;
+  else if (req.query.hasPreferences === 'false') criteria.hasPreferences = false;
+
   // Supprime les valeurs NaN/null
   Object.keys(criteria).forEach((k) => {
     if (criteria[k] == null || Number.isNaN(criteria[k])) delete criteria[k];

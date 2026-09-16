@@ -1,6 +1,14 @@
 // Use relative /api in production (Vercel rewrites proxy to VPS), localhost in dev
 const API_URL = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === "production" ? "/api" : "http://localhost:5001/api")
-export const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || (process.env.NODE_ENV === "production" ? "" : "http://localhost:5001")
+
+// En production, on force le même domaine : les rewrites Vercel proxifient
+// /socket.io vers le VPS. Pointer vers une autre URL absolue (ex: un ancien
+// déploiement Vercel) déclenche un blocage CORS, car ce domaine ne renvoie pas
+// les en-têtes Access-Control-Allow-Origin du backend.
+export const SOCKET_URL =
+  process.env.NODE_ENV === "production"
+    ? ""
+    : process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5001"
 
 // === JWT ===
 export function getToken(): string | null {
@@ -111,6 +119,11 @@ export async function listMyAds() {
 
 export async function contactAd(id: string) {
   return apiFetch(`/annonces/${id}/contacter`, { method: "POST" })
+}
+
+// === PRÉFÉRENCES DE PROXIMITÉ ===
+export async function listPreferences() {
+  return apiFetch("/preferences")
 }
 
 // === FAVORIS ===

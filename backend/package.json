@@ -9,7 +9,8 @@
     "dev": "nodemon src/server.js",
     "db:init": "node src/db/init.js",
     "db:seed": "node src/db/seed.js",
-    "db:seed:massive": "node src/db/seed-massive.js"
+    "db:seed:massive": "node src/db/seed-massive.js",
+    "db:seed:preferences": "node src/db/seed-preferences.js"
   },
   "keywords": [
     "immobilier",

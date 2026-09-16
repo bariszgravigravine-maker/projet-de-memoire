@@ -97,6 +97,25 @@ export const PropertyModel = {
       params.push(c.bathroomsMin);
     }
 
+    // Préférences de proximité : le bien doit posséder TOUS les tags demandés
+    // (ex: "proche d'un lycée ET proche d'un hôpital").
+    if (Array.isArray(c.preferences) && c.preferences.length > 0) {
+      conditions.push(`(
+        SELECT COUNT(DISTINCT pr.code)
+        FROM property_preferences pp
+        JOIN preferences pr ON pr.pref_id = pp.pref_id
+        WHERE pp.property_id = p.id AND pr.code = ANY($${i++})
+      ) = $${i++}`);
+      params.push(c.preferences, c.preferences.length);
+    }
+
+    // Biens référencés (au moins une préférence) vs biens basiques
+    if (c.hasPreferences === true) {
+      conditions.push(`EXISTS (SELECT 1 FROM property_preferences pp2 WHERE pp2.property_id = p.id)`);
+    } else if (c.hasPreferences === false) {
+      conditions.push(`NOT EXISTS (SELECT 1 FROM property_preferences pp3 WHERE pp3.property_id = p.id)`);
+    }
+
     let orderBy = 'a.published_at DESC';
     if (c.sortBy === 'price_asc') orderBy = 'a.price ASC';
     else if (c.sortBy === 'price_desc') orderBy = 'a.price DESC';
@@ -111,7 +130,14 @@ export const PropertyModel = {
                (SELECT json_agg(json_build_object('id', ph.id, 'url', ph.url, 'display_order', ph.display_order) ORDER BY ph.display_order)
                 FROM photos ph WHERE ph.property_id = p.id),
                '[]'::json
-             ) AS photos
+             ) AS photos,
+            COALESCE(
+              (SELECT json_agg(json_build_object('code', pr.code, 'label', pr.label, 'icon', pr.icon, 'note', pp.note, 'distance_m', pp.distance_m) ORDER BY pr.category, pr.label)
+               FROM property_preferences pp
+               JOIN preferences pr ON pr.pref_id = pp.pref_id
+               WHERE pp.property_id = p.id),
+              '[]'::json
+            ) AS preferences
       FROM ads a
       JOIN properties p ON a.property_id = p.id
       JOIN users u ON a.owner_id = u.id

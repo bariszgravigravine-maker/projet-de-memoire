@@ -7,6 +7,7 @@ import chatRoutes from './chatRoutes.js';
 import criteriaRoutes from './criteriaRoutes.js';
 import agentRoutes from './agentRoutes.js';
 import adminRoutes from './adminRoutes.js';
+import preferenceRoutes from './preferenceRoutes.js';
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use('/chat', chatRoutes);
 router.use('/criteres', criteriaRoutes);
 router.use('/agent', agentRoutes);
 router.use('/admin', adminRoutes);
+router.use('/preferences', preferenceRoutes);
 
 export default router;

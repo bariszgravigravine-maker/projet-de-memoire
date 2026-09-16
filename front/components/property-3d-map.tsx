@@ -151,12 +151,26 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
     map.addControl(new maplibregl.ScaleControl(), "bottom-left")
 
     // Fournit une image transparente pour les icônes absentes du sprite
-    // MapTiler (ex: "office_11") au lieu de spammer la console d'erreurs
+    // MapTiler (ex: "office_11", "atm_11") au lieu de spammer la console.
+    // Deux mécanismes complémentaires : le résolveur (MapLibre récent) et
+    // l'événement styleimagemissing (toutes versions).
     if (typeof (map as any).setMissingStyleImageResolver === "function") {
       ;(map as any).setMissingStyleImageResolver(() => new ImageData(1, 1))
     }
+    map.on("styleimagemissing", (e: any) => {
+      const id = e?.id
+      if (!id || map.hasImage(id)) return
+      try {
+        map.addImage(id, new ImageData(1, 1))
+      } catch {
+        // Image déjà ajoutée entre-temps : on ignore
+      }
+    })
 
     map.on("error", (e: any) => {
+      const msg = e.error?.message || e.message || ""
+      // Les icônes de sprite manquantes sont déjà neutralisées ci-dessus
+      if (typeof msg === "string" && msg.includes("could not be loaded")) return
       console.error("[Map] Erreur:", e.error?.message || e.message || e)
     })
 
@@ -208,10 +222,13 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
               "fill-extrusion-rounded-corner-distance": 0.5,
             },
             paint: {
+              // coalesce : certains bâtiments n'ont pas de render_height
+              // (valeur null) → MapLibre retombait sur rgba(0,0,0,1) et
+              // polluait la console avec "Expected value to be of type number"
               "fill-extrusion-color": [
                 "interpolate",
                 ["linear"],
-                ["get", "render_height"],
+                ["coalesce", ["get", "render_height"], 0],
                 0, "#e2e8f0",
                 40, "#93b8e0",
                 120, "#3b6fc9",
@@ -222,14 +239,14 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
                 ["linear"],
                 ["zoom"],
                 13, 0,
-                14.5, ["get", "render_height"],
+                14.5, ["coalesce", ["get", "render_height"], 0],
               ],
               "fill-extrusion-base": [
                 "interpolate",
                 ["linear"],
                 ["zoom"],
                 13, 0,
-                14, ["get", "render_min_height"],
+                14, ["coalesce", ["get", "render_min_height"], 0],
               ],
               "fill-extrusion-opacity": 0.92,
               // Assombrit légèrement la base des bâtiments pour simuler une

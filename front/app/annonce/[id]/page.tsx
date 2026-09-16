@@ -225,6 +225,41 @@ export default function AnnonceDetailPage() {
           </div>
         </div>
 
+        {/* Préférences de proximité (bien "référencé") */}
+        {Array.isArray(ad.preferences) && ad.preferences.length > 0 && (
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold text-foreground mb-2">À proximité</h3>
+            <div className="flex flex-wrap gap-2">
+              {ad.preferences.map((p: any) => (
+                <span
+                  key={p.code}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100 text-xs font-medium"
+                >
+                  {p.label}
+                  {p.distance_m != null && (
+                    <span className="text-emerald-600/70">
+                      {p.distance_m >= 1000
+                        ? `· ${(p.distance_m / 1000).toFixed(1)} km`
+                        : `· ${p.distance_m} m`}
+                    </span>
+                  )}
+                </span>
+              ))}
+            </div>
+            {ad.preferences.some((p: any) => p.note) && (
+              <ul className="mt-2 space-y-1">
+                {ad.preferences
+                  .filter((p: any) => p.note)
+                  .map((p: any) => (
+                    <li key={`note-${p.code}`} className="text-xs text-muted-foreground">
+                      • {p.label} : {p.note}
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         {/* Description */}
         <div className="mt-6">
           <h3 className="text-lg font-semibold text-foreground mb-2">Description</h3>

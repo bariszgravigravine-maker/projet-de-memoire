@@ -170,6 +170,27 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_transactions_type_city ON transactions(property_type, city);
+
+-- --- Préférences de proximité (catalogue : "proche école", "proche hôpital"...) ---
+CREATE TABLE IF NOT EXISTS preferences (
+  pref_id     SERIAL PRIMARY KEY,
+  code        VARCHAR(50) UNIQUE NOT NULL,
+  label       VARCHAR(120) NOT NULL,
+  icon        VARCHAR(50),
+  category    VARCHAR(30),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- --- Association bien <-> préférences (un bien sans ligne = bien "basique") ---
+CREATE TABLE IF NOT EXISTS property_preferences (
+  property_id  UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+  pref_id      INT NOT NULL REFERENCES preferences(pref_id) ON DELETE CASCADE,
+  note         TEXT,
+  distance_m   INT,
+  PRIMARY KEY (property_id, pref_id)
+);
+CREATE INDEX IF NOT EXISTS idx_prop_pref_prop ON property_preferences(property_id);
+CREATE INDEX IF NOT EXISTS idx_prop_pref_pref ON property_preferences(pref_id);
 `;
 
 async function initDatabase() {

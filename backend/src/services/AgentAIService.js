@@ -4,40 +4,78 @@ import GeocodingService from './GeocodingService.js';
 import InteractionModel from '../models/InteractionModel.js';
 
 /**
+ * Fusionne deux jeux de résultats en dédupliquant par ad_id.
+ * Les biens du premier tableau (résultats géolocalisés, plus pertinents)
+ * apparaissent en premier ; le tri par pertinence est donc préservé.
+ */
+function mergeResults(primary, secondary) {
+  const seen = new Set();
+  const out = [];
+  for (const list of [primary, secondary]) {
+    for (const item of list || []) {
+      const key = item.ad_id || item.id;
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        out.push(item);
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Service de l'agent virtuel IA.
  *
  * Flux :
  * 1. L'utilisateur envoie un prompt en langage naturel ("cherche moi une maison
- *    située à ngoa ekele avec 3 chambres 2 salons").
- * 2. Le backend transmet le prompt à Mistral AI.
- * 3. Mistral renvoie un JSON structuré (critères de recherche).
- * 4. Le backend effectue la recherche en base selon ces critères.
+ *    proche du lycée de Ngoa-Ekellé avec 3 chambres").
+ * 2. Le backend transmet le prompt à Mistral AI (résultat mis en cache 5 min).
+ * 3. Mistral renvoie un JSON structuré (type, ville, quartier, préférences...).
+ * 4. Le backend géocode le lieu repère et interroge la base (en parallèle).
  * 5. Mistral formate une réponse conversationnelle avec les résultats.
  */
 export const AgentAIService = {
   async searchByNaturalLanguage(userMessage, userId = null) {
-    // 1. Conversion du prompt en critères JSON via Mistral
+    // 1. Conversion du prompt en critères JSON via Mistral (mis en cache 5 min)
     const criteria = await MistralService.parseSearchQuery(userMessage);
 
-    // 2. Géocodage du lieu repère ("près de ngoa ekele")
-    let searchCriteria = { ...criteria };
-    if (criteria.near && criteria.radiusKm) {
-      const geo = await GeocodingService.geocodeLandmark(criteria.near);
-      if (geo) {
-        searchCriteria.centerLat = geo.latitude;
-        searchCriteria.centerLon = geo.longitude;
-        searchCriteria.radius = criteria.radiusKm;
-      }
+    // Critères transmis au moteur SQL (on retire les champs non-SQL)
+    const { near, radiusKm, explanation, ...sqlCriteria } = criteria;
+    const wantsGeo = Boolean(near && radiusKm);
+
+    // 2. Géocodage du lieu repère ET recherche par ville/quartier EN PARALLÈLE.
+    //    Avant : géocodage (~1 s) puis recherche (~200 ms) en séquentiel.
+    //    Maintenant : les deux partent ensemble, la latence perçue est celle
+    //    du plus lent au lieu de la somme.
+    const [geo, baseResults] = await Promise.all([
+      wantsGeo ? GeocodingService.geocodeLandmark(near) : Promise.resolve(null),
+      AdService.search(sqlCriteria),
+    ]);
+
+    let results = baseResults;
+    let searchCriteria = sqlCriteria;
+
+    // 3. Si le lieu repère a pu être géocodé, on complète avec les biens dans
+    //    le rayon, puis on fusionne en gardant l'ordre : rayon d'abord.
+    if (geo) {
+      searchCriteria = {
+        ...sqlCriteria,
+        centerLat: geo.latitude,
+        centerLon: geo.longitude,
+        radius: radiusKm,
+      };
+      const nearResults = await AdService.search(searchCriteria);
+      results = mergeResults(nearResults, baseResults);
     }
 
-    // 3. Recherche en base de données
-    const results = await AdService.search(searchCriteria);
-
-    // 4. Enregistre l'interaction si l'utilisateur est connecté
+    // 4. Enregistre l'interaction si l'utilisateur est connecté.
+    //    Écritures en parallèle (au lieu d'une boucle await séquentielle).
     if (userId && results.length > 0) {
-      for (const r of results.slice(0, 5)) {
-        await InteractionModel.recordView({ userId, adId: r.ad_id });
-      }
+      await Promise.all(
+        results.slice(0, 5).map((r) =>
+          InteractionModel.recordView({ userId, adId: r.ad_id }).catch(() => {})
+        )
+      );
     }
 
     // 5. Réponse conversationnelle formatée par Mistral
@@ -48,6 +86,9 @@ export const AgentAIService = {
       results,
       response,
       count: results.length,
+      // Indique au front si la recherche a été restreinte à un rayon géographique
+      geocoded: Boolean(geo),
+      explanation: explanation || null,
     };
   },
 

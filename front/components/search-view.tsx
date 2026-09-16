@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation, LocateFixed, Crosshair, ChevronRight, Bed, Bath, GripHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getAds, agentSearch } from "@/lib/api"
+import { getAds, agentSearch, listPreferences } from "@/lib/api"
 import { Property3DMap } from "@/components/property-3d-map"
 
 const POPULAR_CITIES = ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Garoua", "Kribi", "Buea", "Limbe", "Bertoua", "Maroua", "Ngaoundéré", "Ebolowa"]
@@ -14,6 +14,29 @@ const PROPERTY_TYPES = ["Tous", "maison", "appartement", "studio", "chambre", "v
 const POPULAR_DISTRICTS = [
   "Bastos", "Bonas", "Ngoa-Ekellé", "Mvan", "Ekie", "Mfandena", "Omnisport", "Etoudi", "Tsinga", "Ekounou",
   "Bonapriso", "Akwa", "Bonanjo", "Bonamoussadi", "Deido", "Bepanda", "Logbaba", "Makepe",
+]
+
+interface PreferenceOption {
+  code: string
+  label: string
+  icon?: string
+  category?: string
+}
+
+// Repli si l'API des préférences est indisponible (mêmes codes que le backend)
+const FALLBACK_PREFERENCES: PreferenceOption[] = [
+  { code: "ecole", label: "Proche école", category: "education" },
+  { code: "lycee", label: "Proche lycée", category: "education" },
+  { code: "universite", label: "Proche université", category: "education" },
+  { code: "hopital", label: "Proche hôpital", category: "sante" },
+  { code: "pharmacie", label: "Proche pharmacie", category: "sante" },
+  { code: "centre_ville", label: "Proche centre-ville", category: "commodites" },
+  { code: "marche", label: "Proche marché", category: "commodites" },
+  { code: "transport", label: "Proche transport", category: "commodites" },
+  { code: "banque", label: "Proche banque", category: "commodites" },
+  { code: "commissariat", label: "Proche commissariat", category: "securite" },
+  { code: "mosquee", label: "Proche mosquée", category: "spiritualite" },
+  { code: "eglise", label: "Proche église", category: "spiritualite" },
 ]
 
 interface MapActions {
@@ -43,6 +66,11 @@ export function SearchView() {
   const [zoneLoading, setZoneLoading] = useState(false)
   const [zoneInfo, setZoneInfo] = useState<string | null>(null)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  // Préférences de proximité : catalogue + sélection courante
+  const [prefOptions, setPrefOptions] = useState<PreferenceOption[]>(FALLBACK_PREFERENCES)
+  const [selectedPrefs, setSelectedPrefs] = useState<string[]>([])
+  // Critères interprétés par l'IA (affichés en puces sous la réponse)
+  const [aiParsed, setAiParsed] = useState<any | null>(null)
   // Infos d'itinéraire remontées par Property3DMap (km, durée)
   const [routeInfo, setRouteInfo] = useState<{ km: number; min: number } | null>(null)
   const [routeInfoLoading, setRouteInfoLoading] = useState(false)
@@ -86,6 +114,26 @@ export function SearchView() {
   const handleRouteInfo = useCallback((info: { km: number; min: number } | null, loading: boolean) => {
     setRouteInfo(info)
     setRouteInfoLoading(loading)
+  }, [])
+
+  // Charge le catalogue des préférences depuis l'API (une seule fois)
+  useEffect(() => {
+    let cancelled = false
+    listPreferences()
+      .then((json) => {
+        const list = json?.data?.preferences || json?.preferences
+        if (!cancelled && Array.isArray(list) && list.length > 0) setPrefOptions(list)
+      })
+      .catch(() => {
+        // Repli silencieux sur FALLBACK_PREFERENCES
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const togglePref = useCallback((code: string) => {
+    setSelectedPrefs((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    )
   }, [])
 
   // Zone search: biens autour de ma position GPS en temps réel
@@ -202,6 +250,8 @@ export function SearchView() {
       if (priceMin) params.priceMin = Number(priceMin)
       if (priceMax) params.priceMax = Number(priceMax)
       if (bedroomsMin) params.bedroomsMin = Number(bedroomsMin)
+      // Préférences de proximité : "?preferences=lycee,hopital"
+      if (selectedPrefs.length > 0) params.preferences = selectedPrefs.join(",")
 
       const json = await getAds(params)
       const data = json.data?.results || json.results || []
@@ -211,7 +261,7 @@ export function SearchView() {
     } finally {
       setLoading(false)
     }
-  }, [query, type, priceMin, priceMax, bedroomsMin])
+  }, [query, type, priceMin, priceMax, bedroomsMin, selectedPrefs])
 
   const handleAiSearch = useCallback(async () => {
     if (!query.trim()) return
@@ -223,11 +273,20 @@ export function SearchView() {
     setRouteTarget(null)
     try {
       const json = await agentSearch(query.trim())
-      const data = json.data?.results || json.results || []
+      const payload = json.data || json
+      const data = payload.results || []
       setResults(data)
-      setAiResponse(json.data?.response || json.response || null)
+      setAiResponse(payload.response || null)
+      // Critères compris par l'IA (préférences, ville, quartier, budget...)
+      const parsed = payload.criteria || {}
+      setAiParsed(parsed)
+      // Les puces de proximité reflètent ce que l'IA a détecté
+      if (Array.isArray(parsed.preferences) && parsed.preferences.length > 0) {
+        setSelectedPrefs(parsed.preferences)
+      }
     } catch (err: any) {
       setResults([])
+      setAiParsed(null)
       setAiResponse("Erreur lors de la recherche IA. Essayez la recherche avec filtres.")
     } finally {
       setAiLoading(false)
@@ -451,8 +510,41 @@ export function SearchView() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-amber-600 mb-1">Assistant IA</p>
                   <p className="text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">{aiResponse}</p>
+                  {/* Critères compris par l'IA */}
+                  {aiParsed && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {aiParsed.preferences?.map((code: string) => {
+                        const opt = prefOptions.find((p) => p.code === code)
+                        return (
+                          <span key={code} className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-semibold">
+                            {opt?.label || code}
+                          </span>
+                        )
+                      })}
+                      {aiParsed.city && (
+                        <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 text-[10px] font-semibold">
+                          {aiParsed.city}
+                        </span>
+                      )}
+                      {aiParsed.district && (
+                        <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 text-[10px] font-semibold">
+                          {aiParsed.district}
+                        </span>
+                      )}
+                      {aiParsed.type && (
+                        <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 text-[10px] font-semibold capitalize">
+                          {aiParsed.type}
+                        </span>
+                      )}
+                      {aiParsed.priceMax != null && (
+                        <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 text-[10px] font-semibold">
+                          ≤ {formatPrice(aiParsed.priceMax)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <button onClick={() => setAiResponse(null)} className="text-stone-400 hover:text-stone-600 shrink-0">
+                <button onClick={() => { setAiResponse(null); setAiParsed(null) }} className="text-stone-400 hover:text-stone-600 shrink-0">
                   <X size={14} />
                 </button>
               </div>
@@ -515,6 +607,32 @@ export function SearchView() {
                   />
                 </div>
               </div>
+              {/* Préférences de proximité */}
+              <div>
+                <label className="text-xs font-medium text-stone-500 mb-1 block">
+                  Proximité {selectedPrefs.length > 0 && `(${selectedPrefs.length})`}
+                </label>
+                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                  {prefOptions.map((p) => {
+                    const active = selectedPrefs.includes(p.code)
+                    return (
+                      <button
+                        key={p.code}
+                        onClick={() => togglePref(p.code)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
+                          active
+                            ? "bg-emerald-600 text-white border-emerald-600"
+                            : "bg-transparent text-stone-700 border-stone-200 hover:bg-stone-100"
+                        )}
+                      >
+                        {p.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               <div className="flex gap-2">
                 <button
                   onClick={handleSearch}
@@ -523,7 +641,7 @@ export function SearchView() {
                   Appliquer les filtres
                 </button>
                 <button
-                  onClick={() => { setQuery(""); setType("Tous"); setPriceMin(""); setPriceMax(""); setBedroomsMin(""); }}
+                  onClick={() => { setQuery(""); setType("Tous"); setPriceMin(""); setPriceMax(""); setBedroomsMin(""); setSelectedPrefs([]); }}
                   className="px-4 py-2.5 rounded-full bg-stone-100 text-stone-600 text-sm font-medium hover:bg-stone-200 transition-colors"
                 >
                   Réinitialiser
@@ -663,6 +781,26 @@ export function SearchView() {
                   </span>
                 )}
               </div>
+
+              {/* Préférences de proximité du bien */}
+              {Array.isArray(selectedProperty.preferences) && selectedProperty.preferences.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedProperty.preferences.slice(0, 4).map((p: any) => (
+                    <span
+                      key={p.code}
+                      className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-medium"
+                      title={p.note || p.label}
+                    >
+                      {p.label}
+                    </span>
+                  ))}
+                  {selectedProperty.preferences.length > 4 && (
+                    <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[10px] font-medium">
+                      +{selectedProperty.preferences.length - 4}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Actions : Itinéraire + Voir détail */}
               <div className="flex gap-2">
