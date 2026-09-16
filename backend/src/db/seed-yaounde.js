@@ -138,6 +138,36 @@ const PHOTOS = {
 };
 
 // Note de proximité lisible, cohérente avec le code de préférence
+// Libellés de lieu par code de préférence (servent à composer la note avec
+// le quartier : "Lycée d'Ekounou", "Marché de Mokolo", "Arrêt de transport de Bastos").
+const PREF_LIEUX = {
+  ecole: 'École primaire',
+  lycee: 'Lycée',
+  universite: 'Université',
+  creche: 'Crèche',
+  hopital: 'Hôpital',
+  pharmacie: 'Pharmacie',
+  centre_ville: 'Centre-ville',
+  marche: 'Marché',
+  supermarche: 'Supermarché',
+  transport: 'Arrêt de transport',
+  banque: 'Banque',
+  commissariat: 'Commissariat',
+  mosquee: 'Mosquée',
+  eglise: 'Église',
+  espace_vert: 'Espace vert',
+  salle_sport: 'Salle de sport',
+};
+
+// Préposition correcte : "d'Ekounou", "de Mokolo", "du Centre-ville"...
+function prefNote(code, district) {
+  const lieu = PREF_LIEUX[code];
+  if (!lieu || !district) return PREF_NOTES[code] || null;
+  if (code === 'centre_ville') return `Centre-ville de ${district}`;
+  const prep = /^[aeiouyéèêëàâäîïôöùûüh]/i.test(district) ? "d'" : 'de ';
+  return `${lieu} ${prep}${district}`;
+}
+
 const PREF_NOTES = {
   ecole: 'École primaire à proximité immédiate',
   lycee: 'Lycée à moins de 10 minutes à pied',
@@ -346,9 +376,9 @@ async function seedYaounde() {
             const linked = await pool.query(
               `INSERT INTO property_preferences (property_id, pref_id, note, distance_m)
                VALUES ($1, $2, $3, $4)
-               ON CONFLICT (property_id, pref_id) DO NOTHING
+               ON CONFLICT (property_id, pref_id) DO UPDATE SET note = EXCLUDED.note
                RETURNING property_id`,
-              [existingPropId, prefId, PREF_NOTES[code] || null, randInt(80, 1800)]
+              [existingPropId, prefId, prefNote(code, b.district), randInt(80, 1800)]
             );
             if (linked.rows.length > 0) prefLinks++;
           }
@@ -389,7 +419,7 @@ async function seedYaounde() {
             `INSERT INTO property_preferences (property_id, pref_id, note, distance_m)
              VALUES ($1, $2, $3, $4)
              ON CONFLICT (property_id, pref_id) DO NOTHING`,
-            [propId, prefId, PREF_NOTES[code] || null, randInt(80, 1800)]
+            [propId, prefId, prefNote(code, b.district), randInt(80, 1800)]
           );
           prefLinks++;
         }
@@ -429,9 +459,9 @@ async function seedYaounde() {
             const linked = await pool.query(
               `INSERT INTO property_preferences (property_id, pref_id, note, distance_m)
                VALUES ($1, $2, $3, $4)
-               ON CONFLICT (property_id, pref_id) DO NOTHING
+               ON CONFLICT (property_id, pref_id) DO UPDATE SET note = EXCLUDED.note
                RETURNING property_id`,
-              [prop.id, prefId, PREF_NOTES[code] || null, randInt(150, 1800)]
+              [prop.id, prefId, prefNote(code, district), randInt(150, 1800)]
             );
             if (linked.rows.length > 0) synced++;
           }

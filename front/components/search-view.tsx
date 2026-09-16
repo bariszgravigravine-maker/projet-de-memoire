@@ -16,6 +16,20 @@ const POPULAR_DISTRICTS = [
   "Bonapriso", "Akwa", "Bonanjo", "Bonamoussadi", "Deido", "Bepanda", "Logbaba", "Makepe",
 ]
 
+// Retire les marqueurs markdown résiduels de la réponse IA (**gras**, ##, listes "-")
+// pour un affichage en texte brut propre — le détail des biens est dans le tableau.
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, "$1")   // **gras**
+    .replace(/\*([^*]+)\*/g, "$1")       // *italique*
+    .replace(/`([^`]+)`/g, "$1")         // `code`
+    .replace(/^#{1,6}\s*/gm, "")         // ## titres
+    .replace(/^\s*[-*]\s+/gm, "• ")      // listes à puces
+    .replace(/^\s*\d+\.\s+/gm, "")       // listes numérotées
+    .replace(/\n{3,}/g, "\n\n")          // triples sauts de ligne
+    .trim()
+}
+
 interface PreferenceOption {
   code: string
   label: string
@@ -277,7 +291,10 @@ export function SearchView() {
       const payload = json.data || json
       const data = payload.results || []
       setResults(data)
-      setAiResponse(payload.response || null)
+      // Nettoie un éventuel markdown résiduel de l'IA (**gras**, ## titres,
+      // listes "-") : le front affiche la réponse en texte brut + un tableau.
+      const rawResponse = payload.response || null
+      setAiResponse(rawResponse ? stripMarkdown(rawResponse) : null)
       // Critères compris par l'IA (préférences, ville, quartier, budget...)
       const parsed = payload.criteria || {}
       setAiParsed(parsed)
@@ -519,6 +536,46 @@ export function SearchView() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-amber-600 mb-1">Assistant IA</p>
                   <p className="text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">{aiResponse}</p>
+                  {/* Tableau des biens trouvés (cliquable → sélection sur la map) */}
+                  {results.length > 0 && (
+                    <div className="mt-3 max-h-52 overflow-auto rounded-lg border border-stone-200">
+                      <table className="w-full text-xs">
+                        <thead className="bg-stone-50 sticky top-0">
+                          <tr className="text-left text-stone-500">
+                            <th className="px-2.5 py-1.5 font-semibold">Bien</th>
+                            <th className="px-2.5 py-1.5 font-semibold">Prix</th>
+                            <th className="px-2.5 py-1.5 font-semibold">Quartier</th>
+                            <th className="px-2.5 py-1.5 font-semibold">Proximité</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {results.slice(0, 10).map((r: any) => {
+                            const id = r.ad_id || r.id
+                            const active = selectedProperty && (selectedProperty.ad_id || selectedProperty.id) === id
+                            return (
+                              <tr
+                                key={id}
+                                onClick={() => handleMarkerClick(id)}
+                                className={cn(
+                                  "border-t border-stone-100 cursor-pointer transition-colors",
+                                  active ? "bg-emerald-50" : "hover:bg-stone-50"
+                                )}
+                              >
+                                <td className="px-2.5 py-1.5 font-medium text-stone-800 max-w-40 truncate">{r.title}</td>
+                                <td className="px-2.5 py-1.5 whitespace-nowrap text-stone-700">{formatPrice(r.price)}</td>
+                                <td className="px-2.5 py-1.5 whitespace-nowrap text-stone-600">{r.district || r.city}</td>
+                                <td className="px-2.5 py-1.5 text-stone-600">
+                                  {Array.isArray(r.preferences) && r.preferences.length > 0
+                                    ? r.preferences.slice(0, 3).map((p: any) => p.note || p.label || p.code).join(" · ")
+                                    : "—"}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                   {/* Critères compris par l'IA */}
                   {aiParsed && (
                     <div className="flex flex-wrap gap-1.5 mt-2">

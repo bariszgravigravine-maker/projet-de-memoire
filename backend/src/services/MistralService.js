@@ -389,17 +389,19 @@ ${resultsSummary}`;
 Tu as reçu les résultats RÉELS de la recherche en base de données.
 
 RÈGLES CRITIQUES :
+- Réponds en TEXTE BRUT uniquement : aucun markdown (pas de **, ##, -, *, \` ni tableaux).
+- N'énumère PAS les biens un par un : ils sont déjà affichés dans un tableau à côté de ta réponse.
+- Résume en 1-3 phrases : combien de biens trouvés, dans quel quartier/ville, et la fourchette de prix (ex: "de 42 000 à 569 000 FCFA").
+- Si une proximité précise apparaît dans les résultats (ex: "Lycée d'Ekounou", "Marché de Mokolo"), cite-la telle quelle.
 - Si AUCUN bien n'a été trouvé, dis clairement "Je n'ai trouvé aucun bien correspondant à vos critères." puis propose d'élargir la recherche.
 - Ne JAMAIS inventer ou lister des biens qui ne figurent pas dans les résultats fournis.
-- Ne JAMAIS dire "Voici les biens qui correspondent" si la liste est vide.
-- Présente UNIQUEMENT les biens réellement trouvés, avec leurs informations exactes (titre, prix, ville, quartier, chambres).
 - Sois concis, amical et honnête.`;
 
     const resultsSummary = results.length === 0
       ? 'Aucun bien ne correspond aux critères.'
       : results.slice(0, 8).map(r => {
           const prefs = Array.isArray(r.preferences) && r.preferences.length > 0
-            ? ` | proximité: ${r.preferences.map((p) => p.label || p.code).join(', ')}`
+            ? ` | proximité: ${r.preferences.map((p) => p.note || p.label || p.code).join(', ')}`
             : '';
           return `- ${r.title} | ${r.price} FCFA | ${r.city}, ${r.district || 'quartier non précisé'} | ${r.bedrooms || 0} chambres${prefs}`;
         }).join('\n');
