@@ -1,14 +1,18 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Mail, Eye, EyeOff, X, Home, Loader2 } from "lucide-react"
 import Image from "next/image"
 import { NestFindLogo } from "@/components/nestfind-logo"
 import { login, register } from "@/lib/api"
 
-export default function AuthPage() {
+function AuthForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Page demandée avant la redirection (ex: /dashboard/search) — on y retourne
+  // après connexion. Valeur par défaut : /dashboard.
+  const redirectTo = searchParams.get("redirect") || "/dashboard"
   const [activeTab, setActiveTab] = useState<"signup" | "signin">("signup")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -40,7 +44,7 @@ export default function AuthPage() {
     setError(null)
     try {
       await login(email, password)
-      router.push("/dashboard")
+      router.push(redirectTo)
     } catch (err: any) {
       setError(err.message || "Email ou mot de passe incorrect")
     } finally {
@@ -315,5 +319,18 @@ export default function AuthPage() {
         />
       </div>
     </div>
+  )
+}
+
+// useSearchParams exige un Suspense boundary (règle Next.js)
+export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-stone-400" />
+      </div>
+    }>
+      <AuthForm />
+    </Suspense>
   )
 }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { AIChatFab } from '@/components/ai-chat-fab'
 import { RealtimeProvider } from '@/components/realtime-provider'
+import { RouteGuard } from '@/components/route-guard'
 import './globals.css'
 
 const inter = Inter({
@@ -56,7 +57,9 @@ export default function RootLayout({
     <html lang="fr">
       <body className={`${inter.variable} font-sans antialiased`}>
         <RealtimeProvider>
-          {children}
+          <RouteGuard>
+            {children}
+          </RouteGuard>
           <AIChatFab />
         </RealtimeProvider>
       </body>
