@@ -92,15 +92,18 @@ export const AgentAIService = {
 
     // 3. Si le lieu repère a pu être géocodé, on complète avec les biens dans
     //    le rayon, puis on fusionne en gardant l'ordre : rayon d'abord.
+    //    IMPORTANT : on part de `searchCriteria` (potentiellement relaxé) et
+    //    on fusionne avec `results` (pas `baseResults` qui peut être vide
+    //    après relaxation) — sinon les résultats relaxés seraient écrasés.
     if (geo) {
       searchCriteria = {
-        ...sqlCriteria,
+        ...searchCriteria,
         centerLat: geo.latitude,
         centerLon: geo.longitude,
         radius: effectiveRadius,
       };
       const nearResults = await AdService.search(searchCriteria);
-      results = mergeResults(nearResults, baseResults);
+      results = mergeResults(nearResults, results);
     }
 
     // 4. Enregistre l'interaction si l'utilisateur est connecté.
