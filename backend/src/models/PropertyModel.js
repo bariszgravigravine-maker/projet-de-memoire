@@ -97,16 +97,16 @@ export const PropertyModel = {
       params.push(c.bathroomsMin);
     }
 
-    // Préférences de proximité : le bien doit posséder TOUS les tags demandés
-    // (ex: "proche d'un lycée ET proche d'un hôpital").
+    // Préférences de proximité : le bien doit posséder AU MOINS UN des tags
+    // demandés (sémantique OU : "proche d'un lycée OU d'un hôpital").
     if (Array.isArray(c.preferences) && c.preferences.length > 0) {
-      conditions.push(`(
-        SELECT COUNT(DISTINCT pr.code)
+      conditions.push(`EXISTS (
+        SELECT 1
         FROM property_preferences pp
         JOIN preferences pr ON pr.pref_id = pp.pref_id
         WHERE pp.property_id = p.id AND pr.code = ANY($${i++})
-      ) = $${i++}`);
-      params.push(c.preferences, c.preferences.length);
+      )`);
+      params.push(c.preferences);
     }
 
     // Biens référencés (au moins une préférence) vs biens basiques
