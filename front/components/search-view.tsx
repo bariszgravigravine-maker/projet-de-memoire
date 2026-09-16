@@ -2,14 +2,19 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation, LocateFixed, Crosshair } from "lucide-react"
+import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation, LocateFixed, Crosshair, ChevronRight, Bed, Bath } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getAds, agentSearch } from "@/lib/api"
 import { Property3DMap } from "@/components/property-3d-map"
-import { Skeleton } from "@/components/skeleton"
 
 const POPULAR_CITIES = ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Garoua", "Kribi", "Buea", "Limbe", "Bertoua", "Maroua", "Ngaoundéré", "Ebolowa"]
 const PROPERTY_TYPES = ["Tous", "maison", "appartement", "studio", "chambre", "villa", "terrain", "bureau"]
+
+// Quartiers populaires de Yaoundé et Douala (pour la recherche par place)
+const POPULAR_DISTRICTS = [
+  "Bastos", "Bonas", "Ngoa-Ekellé", "Mvan", "Ekie", "Mfandena", "Omnisport", "Etoudi", "Tsinga", "Ekounou",
+  "Bonapriso", "Akwa", "Bonanjo", "Bonamoussadi", "Deido", "Bepanda", "Logbaba", "Makepe",
+]
 
 interface MapActions {
   flyToProperty: (lat: number, lon: number, title?: string) => void
@@ -28,7 +33,6 @@ export function SearchView() {
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
-  const [showPanel, setShowPanel] = useState(true)
   const [selectedProperty, setSelectedProperty] = useState<any | null>(null)
   const [routeTarget, setRouteTarget] = useState<any | null>(null)
   const [aiMode, setAiMode] = useState(false)
@@ -36,6 +40,7 @@ export function SearchView() {
   const [aiLoading, setAiLoading] = useState(false)
   const [zoneLoading, setZoneLoading] = useState(false)
   const [zoneInfo, setZoneInfo] = useState<string | null>(null)
+  const [showSuggestions, setShowSuggestions] = useState(false)
   const hasFetchedRef = useRef(false)
   const mapActionsRef = useRef<MapActions | null>(null)
 
@@ -47,6 +52,8 @@ export function SearchView() {
   const handleZoneSearch = useCallback(async () => {
     setZoneLoading(true)
     setZoneInfo(null)
+    setSelectedProperty(null)
+    setRouteTarget(null)
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
         if (!navigator.geolocation) return reject(new Error("Geolocation non supporté"))
@@ -58,7 +65,6 @@ export function SearchView() {
       })
       const lon = pos.coords.longitude
       const lat = pos.coords.latitude
-      // Rayon de recherche : 5 km autour de ma position
       const radius = 5
       const json = await getAds({
         centerLat: lat,
@@ -68,7 +74,6 @@ export function SearchView() {
       const data = json.data?.results || json.results || []
       setResults(data)
       setSearched(true)
-      setRouteTarget(null)
       mapActionsRef.current?.flyToZone(lat, lon, radius)
       setZoneInfo(`${data.length} bien(s) dans un rayon de ${radius} km autour de vous`)
     } catch (err: any) {
@@ -78,34 +83,45 @@ export function SearchView() {
     }
   }, [])
 
-  // Place search : tape un lieu ou bien et zoome dessus avec un marqueur
+  // Place search : tape un lieu/quartier/ville et zoome dessus avec un marqueur pin
+  // Cherche à la fois par ville ET par quartier (Bastos est un quartier, pas une ville)
   const handlePlaceSearch = useCallback(async () => {
     const q = query.trim()
     if (!q) return
     setLoading(true)
     setSearched(true)
     setZoneInfo(null)
+    setSelectedProperty(null)
+    setRouteTarget(null)
     try {
-      // 1) Cherche dans les annonces existantes
-      const json = await getAds({ city: q })
-      const data = json.data?.results || json.results || []
-      setResults(data)
-      setRouteTarget(null)
-      // 2) Si on a un résultat exact, zoome dessus avec un marqueur pin
-      const match = data.find((p: any) =>
-        p &&
-        ((p.city && p.city.toLowerCase().includes(q.toLowerCase())) ||
-         (p.district && p.district.toLowerCase().includes(q.toLowerCase())) ||
-         (p.title && p.title.toLowerCase().includes(q.toLowerCase())))
-      )
-      if (match && match.latitude != null && match.longitude != null) {
-        mapActionsRef.current?.flyToProperty(
-          Number(match.latitude),
-          Number(match.longitude),
-          match.title
+      // 1) Cherche par ville
+      let json = await getAds({ city: q })
+      let data = json.data?.results || json.results || []
+
+      // 2) Si aucun résultat par ville, cherche par quartier
+      if (data.length === 0) {
+        json = await getAds({ district: q })
+        data = json.data?.results || json.results || []
+      }
+
+      // 3) Si toujours rien, cherche dans les deux (ville + quartier) avec une requête large
+      if (data.length === 0) {
+        // Dernier recours : récupère tous et filtre côté client
+        json = await getAds()
+        const all = json.data?.results || json.results || []
+        const ql = q.toLowerCase()
+        data = all.filter((p: any) =>
+          (p.city && p.city.toLowerCase().includes(ql)) ||
+          (p.district && p.district.toLowerCase().includes(ql)) ||
+          (p.title && p.title.toLowerCase().includes(ql)) ||
+          (p.address && p.address.toLowerCase().includes(ql))
         )
-      } else if (data.length > 0 && data[0].latitude != null) {
-        // Sinon zoome sur le premier résultat
+      }
+
+      setResults(data)
+
+      // 4) Zoome sur le premier résultat avec un marqueur pin
+      if (data.length > 0 && data[0].latitude != null) {
         mapActionsRef.current?.flyToProperty(
           Number(data[0].latitude),
           Number(data[0].longitude),
@@ -123,9 +139,19 @@ export function SearchView() {
     setLoading(true)
     setSearched(true)
     setAiResponse(null)
+    setSelectedProperty(null)
+    setRouteTarget(null)
     try {
       const params: Record<string, string | number> = {}
-      if (query.trim()) params.city = query.trim()
+      if (query.trim()) {
+        // Si la query ressemble à un quartier connu, on cherche par district
+        const isDistrict = POPULAR_DISTRICTS.some(d => d.toLowerCase() === query.trim().toLowerCase())
+        if (isDistrict) {
+          params.district = query.trim()
+        } else {
+          params.city = query.trim()
+        }
+      }
       if (type !== "Tous") params.type = type
       if (priceMin) params.priceMin = Number(priceMin)
       if (priceMax) params.priceMax = Number(priceMax)
@@ -134,7 +160,6 @@ export function SearchView() {
       const json = await getAds(params)
       const data = json.data?.results || json.results || []
       setResults(data)
-      setRouteTarget(null)
     } catch (err: any) {
       setResults([])
     } finally {
@@ -148,6 +173,8 @@ export function SearchView() {
     setSearched(true)
     setLoading(true)
     setAiResponse(null)
+    setSelectedProperty(null)
+    setRouteTarget(null)
     try {
       const json = await agentSearch(query.trim())
       const data = json.data?.results || json.results || []
@@ -169,14 +196,27 @@ export function SearchView() {
     handleSearch()
   }, [handleSearch])
 
+  // Quand on clique sur un marqueur de la map → affiche l'overlay card (style Yango)
   const handleMarkerClick = useCallback((id: string) => {
     const prop = results.find((r) => (r.ad_id || r.id) === id)
     if (prop) {
       setSelectedProperty(prop)
-      setRouteTarget(prop)
-      setShowPanel(true)
+      // Ne trace pas l'itinéraire automatiquement, juste sélectionne
     }
   }, [results])
+
+  // Trace l'itinéraire vers le bien sélectionné (depuis l'overlay card)
+  const handleRoute = useCallback(() => {
+    if (selectedProperty) {
+      setRouteTarget(selectedProperty)
+    }
+  }, [selectedProperty])
+
+  // Ferme l'overlay card
+  const handleCloseCard = useCallback(() => {
+    setSelectedProperty(null)
+    setRouteTarget(null)
+  }, [])
 
   const formatPrice = (price: any) => {
     const n = Number(price)
@@ -185,6 +225,13 @@ export function SearchView() {
     if (n >= 1000) return `${(n / 1000).toFixed(0)}k FCFA`
     return `${n} FCFA`
   }
+
+  // Suggestions de lieux pendant la frappe
+  const suggestions = query.trim().length > 0
+    ? [...POPULAR_CITIES, ...POPULAR_DISTRICTS]
+        .filter(s => s.toLowerCase().includes(query.trim().toLowerCase()))
+        .slice(0, 6)
+    : []
 
   return (
     <div className="fixed inset-0 w-full h-full overflow-hidden">
@@ -209,33 +256,71 @@ export function SearchView() {
             <LayoutDashboard className="w-5 h-5 text-stone-700" />
           </button>
 
-          <div className="flex-1 max-w-2xl flex items-center gap-2 bg-white/90 backdrop-blur rounded-full px-4 py-2.5 shadow-lg">
-            {aiMode ? (
-              <Sparkles size={16} className="text-amber-500 shrink-0" />
-            ) : (
-              <Search size={16} className="text-stone-500 shrink-0" />
-            )}
-            <input
-              className="flex-1 bg-transparent text-sm text-stone-800 placeholder:text-stone-400 outline-none min-w-0"
-              placeholder={aiMode ? "Décrivez votre bien idéal en langage naturel..." : "Rechercher par ville, quartier..."}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && (aiMode ? handleAiSearch() : handleSearch())}
-            />
-            {query && (
-              <button onClick={() => { setQuery(""); setAiResponse(null); }} className="text-stone-400 hover:text-stone-600 shrink-0">
-                <X size={14} />
-              </button>
-            )}
-            {aiMode && (
-              <button
-                onClick={handleAiSearch}
-                disabled={aiLoading || !query.trim()}
-                className="shrink-0 p-1.5 rounded-full bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors"
-                title="Rechercher avec l'IA"
-              >
-                <Send size={14} />
-              </button>
+          <div className="flex-1 max-w-2xl relative">
+            <div className="flex items-center gap-2 bg-white/90 backdrop-blur rounded-full px-4 py-2.5 shadow-lg">
+              {aiMode ? (
+                <Sparkles size={16} className="text-amber-500 shrink-0" />
+              ) : (
+                <Search size={16} className="text-stone-500 shrink-0" />
+              )}
+              <input
+                className="flex-1 bg-transparent text-sm text-stone-800 placeholder:text-stone-400 outline-none min-w-0"
+                placeholder={aiMode ? "Décrivez votre bien idéal en langage naturel..." : "Rechercher par ville, quartier, lieu..."}
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true) }}
+                onFocus={() => setShowSuggestions(true)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    setShowSuggestions(false)
+                    aiMode ? handleAiSearch() : handleSearch()
+                  }
+                  if (e.key === "Escape") setShowSuggestions(false)
+                }}
+              />
+              {query && (
+                <button onClick={() => { setQuery(""); setAiResponse(null); setShowSuggestions(false) }} className="text-stone-400 hover:text-stone-600 shrink-0">
+                  <X size={14} />
+                </button>
+              )}
+              {aiMode && (
+                <button
+                  onClick={handleAiSearch}
+                  disabled={aiLoading || !query.trim()}
+                  className="shrink-0 p-1.5 rounded-full bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors"
+                  title="Rechercher avec l'IA"
+                >
+                  <Send size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Suggestions dropdown (villes + quartiers) */}
+            {showSuggestions && suggestions.length > 0 && !aiMode && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl overflow-hidden border border-stone-100">
+                {suggestions.map((s) => {
+                  const isDistrict = POPULAR_DISTRICTS.includes(s)
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        setQuery(s)
+                        setShowSuggestions(false)
+                        // Lance automatiquement la recherche par place
+                        setTimeout(() => {
+                          handlePlaceSearch()
+                        }, 50)
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-stone-50 transition-colors text-left border-b border-stone-50 last:border-0"
+                    >
+                      <MapPin size={16} className={isDistrict ? "text-amber-500" : "text-stone-500"} />
+                      <span className="text-sm text-stone-800 flex-1">{s}</span>
+                      <span className="text-[10px] text-stone-400 font-medium uppercase">
+                        {isDistrict ? "Quartier" : "Ville"}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
             )}
           </div>
 
@@ -413,12 +498,12 @@ export function SearchView() {
 
       {/* Popular cities floating chips */}
       {!searched && !loading && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
           <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
             {POPULAR_CITIES.map((city) => (
               <button
                 key={city}
-                onClick={() => { setQuery(city); }}
+                onClick={() => { setQuery(city); handlePlaceSearch(); }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/90 backdrop-blur shadow-lg text-sm font-medium text-stone-700 hover:bg-white transition-colors"
               >
                 <MapPin size={14} className="text-stone-500" />
@@ -429,104 +514,125 @@ export function SearchView() {
         </div>
       )}
 
-      {/* Side panel with results list */}
-      {searched && !loading && results.length > 0 && (
-        <div className={cn(
-          "absolute left-0 top-16 bottom-0 z-10 transition-transform duration-300 pointer-events-auto",
-          showPanel ? "translate-x-0" : "-translate-x-full"
-        )}>
-          <div className="h-full w-80 sm:w-96 bg-white/95 backdrop-blur shadow-xl flex flex-col">
-            <div className="p-4 border-b border-stone-200 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-stone-800">
-                {results.length} bien(s) trouvé(s)
-              </h3>
-              <button
-                onClick={() => setShowPanel(false)}
-                className="p-1.5 rounded-full hover:bg-stone-100 transition-colors"
-              >
-                <X size={16} className="text-stone-500" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {results.map((ad) => {
-                const photos = Array.isArray(ad.photos)
-                  ? ad.photos.map((p: any) => p?.url || p).filter(Boolean)
+      {/* Compteur de résultats en bas (overlay discret sur la map) */}
+      {searched && !loading && results.length > 0 && !selectedProperty && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+          <div className="px-4 py-2 rounded-full bg-stone-900/90 backdrop-blur text-white text-sm font-semibold shadow-lg">
+            {results.length} bien(s) sur la carte
+          </div>
+        </div>
+      )}
+
+      {/* OVERLAY CARD style Yango : preview du bien sélectionné en bas de la map */}
+      {selectedProperty && (
+        <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-auto anim-fade-up">
+          {/* Bouton fermer flottant au-dessus de la card */}
+          <div className="flex justify-center mb-2">
+            <button
+              onClick={handleCloseCard}
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-white shadow-lg hover:bg-stone-50 transition-colors"
+              title="Fermer"
+            >
+              <X size={18} className="text-stone-700" />
+            </button>
+          </div>
+
+          <div className="mx-3 mb-3 sm:mx-auto sm:max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-stone-100">
+            {/* Image du bien */}
+            <div className="relative h-44 bg-stone-100">
+              {(() => {
+                const photos = Array.isArray(selectedProperty.photos)
+                  ? selectedProperty.photos.map((p: any) => p?.url || p).filter(Boolean)
                   : []
                 const img = photos[0] || "/images/house-1.jpg"
                 return (
-                  <div
-                    key={ad.ad_id || ad.id}
-                    onClick={() => router.push(`/annonce/${ad.ad_id || ad.id}`)}
-                    onMouseEnter={() => setSelectedProperty(ad)}
-                    className={cn(
-                      "flex gap-3 p-3 rounded-xl border cursor-pointer transition-all",
-                      selectedProperty?.ad_id === ad.ad_id
-                        ? "border-stone-800 bg-stone-50"
-                        : "border-stone-200 hover:border-stone-300 hover:bg-stone-50"
-                    )}
-                  >
-                    <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0">
-                      <img
-                        src={img}
-                        alt={ad.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const el = e.currentTarget
-                          if (!el.dataset.fb) {
-                            el.dataset.fb = "1"
-                            el.src = "/images/house-1.jpg"
-                          }
-                        }}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="font-semibold text-stone-800 text-sm truncate">{ad.title}</p>
-                      <p className="text-xs text-stone-500 mt-0.5 truncate">
-                        <MapPin size={10} className="inline mr-1" />
-                        {[ad.district, ad.city].filter(Boolean).join(", ")}
-                      </p>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-stone-500">
-                        {ad.bedrooms != null && <span>{ad.bedrooms} ch.</span>}
-                        {ad.bathrooms != null && <span>{ad.bathrooms} sdb</span>}
-                      </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-sm font-bold text-stone-800 truncate">
-                          {formatPrice(ad.price)}
-                        </p>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedProperty(ad)
-                            setRouteTarget(ad)
-                          }}
-                          className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-full bg-stone-800 text-white text-[10px] font-semibold hover:bg-stone-700 transition-colors"
-                          title="Afficher l'itinéraire vers ce bien"
-                        >
-                          <Navigation size={10} />
-                          Itinéraire
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <img
+                    src={img}
+                    alt={selectedProperty.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const el = e.currentTarget
+                      if (!el.dataset.fb) {
+                        el.dataset.fb = "1"
+                        el.src = "/images/house-1.jpg"
+                      }
+                    }}
+                  />
                 )
-              })}
+              })()}
+              {/* Badge prix en overlay sur l'image */}
+              <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-stone-900/90 backdrop-blur text-white text-sm font-bold shadow-lg">
+                {formatPrice(selectedProperty.price)}
+              </div>
+              {/* Badge type en overlay */}
+              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur text-stone-800 text-xs font-semibold shadow-lg capitalize">
+                {selectedProperty.property_type || ""}
+              </div>
+            </div>
+
+            {/* Contenu de la card */}
+            <div className="p-4 space-y-3">
+              <div>
+                <h3 className="text-base font-bold text-stone-900 leading-tight line-clamp-1">
+                  {selectedProperty.title}
+                </h3>
+                <p className="text-sm text-stone-500 mt-0.5 flex items-center gap-1">
+                  <MapPin size={13} className="shrink-0" />
+                  {[selectedProperty.district, selectedProperty.city].filter(Boolean).join(", ")}
+                </p>
+              </div>
+
+              {/* Caractéristiques */}
+              <div className="flex items-center gap-4 text-sm text-stone-600">
+                {selectedProperty.bedrooms != null && (
+                  <span className="flex items-center gap-1">
+                    <Bed size={15} className="text-stone-400" />
+                    {selectedProperty.bedrooms} ch.
+                  </span>
+                )}
+                {selectedProperty.bathrooms != null && (
+                  <span className="flex items-center gap-1">
+                    <Bath size={15} className="text-stone-400" />
+                    {selectedProperty.bathrooms} sdb
+                  </span>
+                )}
+                {selectedProperty.area != null && (
+                  <span className="flex items-center gap-1">
+                    <span className="text-stone-400">▢</span>
+                    {selectedProperty.area} m²
+                  </span>
+                )}
+              </div>
+
+              {/* Actions : Itinéraire + Voir détail */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={handleRoute}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold transition-colors",
+                    routeTarget?.ad_id === selectedProperty.ad_id
+                      ? "bg-emerald-600 text-white"
+                      : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  )}
+                >
+                  <Navigation size={16} />
+                  {routeTarget?.ad_id === selectedProperty.ad_id ? "Itinéraire tracé" : "Itinéraire"}
+                </button>
+                <button
+                  onClick={() => router.push(`/annonce/${selectedProperty.ad_id || selectedProperty.id}`)}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-stone-900 text-white text-sm font-semibold hover:bg-stone-800 transition-colors"
+                >
+                  Voir le bien
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Toggle panel button when hidden */}
-      {searched && !loading && results.length > 0 && !showPanel && (
-        <button
-          onClick={() => setShowPanel(true)}
-          className="absolute left-4 top-20 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-lg hover:bg-white transition-colors pointer-events-auto"
-        >
-          <Search size={18} className="text-stone-700" />
-        </button>
-      )}
-
       {/* No results */}
-      {searched && !loading && results.length === 0 && (
+      {searched && !loading && results.length === 0 && !selectedProperty && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-auto">
           <div className="flex flex-col items-center justify-center text-center p-8 rounded-2xl bg-white/90 backdrop-blur shadow-lg">
             <MapPin size={36} className="text-stone-400 mb-3" />

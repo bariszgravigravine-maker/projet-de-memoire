@@ -536,6 +536,18 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
       el.addEventListener("click", () => {
         const id = prop.ad_id || prop.id || ""
         if (id && onMarkerClick) onMarkerClick(id)
+        // Zoom vers le bien cliqué (style Yango : la caméra suit le marqueur)
+        const map = mapRef.current
+        if (map && prop.latitude != null && prop.longitude != null) {
+          map.flyTo({
+            center: [Number(prop.longitude), Number(prop.latitude)],
+            zoom: 17,
+            pitch: 65,
+            bearing: 0,
+            duration: 800,
+            essential: true,
+          })
+        }
       })
 
       const popup = new maplibregl.Popup({
