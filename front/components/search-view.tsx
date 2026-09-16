@@ -314,6 +314,9 @@ export function SearchView() {
   // Trace l'itinéraire vers le bien sélectionné (depuis l'overlay card)
   const handleRoute = useCallback(() => {
     if (selectedProperty) {
+      // En mode itinéraire, seul le bien ciblé reste sur la carte : on
+      // empêche updateMarkers de re-cadrer la vue (la route fait fitBounds).
+      mapActionsRef.current?.setSuppressAutoFit(true)
       setRouteTarget(selectedProperty)
     }
   }, [selectedProperty])
@@ -345,8 +348,10 @@ export function SearchView() {
   return (
     <div className="fixed inset-0 w-full h-full overflow-hidden">
       {/* Full-screen 3D Map */}
+      {/* En mode itinéraire, seul le bien ciblé garde son marqueur : */}
+      {/* les autres badges disparaissent pour désencombrer la carte. */}
       <Property3DMap
-        properties={results}
+        properties={routeTarget ? [routeTarget] : results}
         onMarkerClick={handleMarkerClick}
         destination={routeTarget}
         onCloseRoute={() => setRouteTarget(null)}
