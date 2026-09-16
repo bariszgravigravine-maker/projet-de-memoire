@@ -373,7 +373,7 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
   const setUserPosition = useCallback((lon: number, lat: number) => {
     userPosRef.current = [lon, lat]
     const map = mapRef.current
-    if (map?.loaded()) showUserMarker()
+    if (map?.isStyleLoaded()) showUserMarker()
     else map?.once("load", showUserMarker)
   }, [showUserMarker])
 
@@ -402,7 +402,7 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
       (pos) => {
         userPosRef.current = [pos.coords.longitude, pos.coords.latitude]
         const map = mapRef.current
-        if (map?.loaded()) showUserMarker()
+        if (map?.isStyleLoaded()) showUserMarker()
         else map?.once("load", showUserMarker)
       },
       () => {},
@@ -554,7 +554,10 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    if (map.loaded()) drawRoute()
+    // `loaded()` est false pendant un flyTo/zoom (tuiles en cours) et "load"
+    // ne se déclenche qu'UNE fois à l'init : l'itinéraire ne se traçait plus.
+    // `isStyleLoaded()` reste vrai dès que le style est prêt (addSource/addLayer OK).
+    if (map.isStyleLoaded()) drawRoute()
     else map.once("load", drawRoute)
   }, [drawRoute])
 
@@ -727,7 +730,7 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
 
   useEffect(() => {
     if (mapRef.current) {
-      if (mapRef.current.loaded()) {
+      if (mapRef.current.isStyleLoaded()) {
         updateMarkers()
       } else {
         mapRef.current.once("load", updateMarkers)
