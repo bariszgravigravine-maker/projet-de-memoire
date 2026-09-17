@@ -85,11 +85,12 @@ export const PropertyModel = {
       params.push(c.bedroomsMin);
     }
     if (c.city) {
-      conditions.push(`unaccent(p.city) ILIKE unaccent($${i++})`);
+      // Tirets/espaces interchangeables : "Ngoa-Ekelle" matche "Ngoa Ekelle"
+      conditions.push(`unaccent(lower(replace(p.city, '-', ' '))) ILIKE unaccent(lower(replace($${i++}, '-', ' ')))`);
       params.push(`%${c.city}%`);
     }
     if (c.district) {
-      conditions.push(`unaccent(p.district) ILIKE unaccent($${i++})`);
+      conditions.push(`unaccent(lower(replace(p.district, '-', ' '))) ILIKE unaccent(lower(replace($${i++}, '-', ' ')))`);
       params.push(`%${c.district}%`);
     }
     if (c.bathroomsMin != null) {

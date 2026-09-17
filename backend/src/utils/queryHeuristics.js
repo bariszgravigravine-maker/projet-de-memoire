@@ -19,7 +19,9 @@ const CITIES = [
 const DISTRICTS = [
   'Bastos', 'Bonas', 'Ngoa-Ekellé', 'Ngoa Ekelle', 'Mvan', 'Ekie', 'Mfandena',
   'Omnisport', 'Etoudi', 'Tsinga', 'Ekounou', 'Mvog-Mbi', 'Mvog-Ada', 'Briqueterie',
-  'Mokolo', 'Bonapriso', 'Akwa', 'Bonanjo', 'Bonamoussadi', 'Deido', 'New Bell',
+  'Mokolo', 'Nlongkak', 'Essos', 'Mendong', 'Odza', 'Awae', 'Emana', 'Nkolbisson',
+  'Nsimeyong', 'Damas', 'Nkol-Eton',
+  'Bonapriso', 'Akwa', 'Bonanjo', 'Bonamoussadi', 'Deido', 'New Bell',
   'Bepanda', 'Logbaba', 'Makepe', 'Bonaberi', 'Ndokoti',
 ];
 
@@ -49,7 +51,11 @@ function normalize(str) {
   return (str || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/[-_']/g, ' ')    // tirets/apostrophes → espace ("mvog-mbi" = "mvog mbi")
+    .replace(/(.)\1+/g, '$1')  // lettres doublées : "ekelle" → "ekele"
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function findPreferenceCodes(text) {

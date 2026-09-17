@@ -7,6 +7,7 @@ import NotificationService from './NotificationService.js';
 import SearchCriteriaModel from '../models/SearchCriteriaModel.js';
 import CloudinaryService from './CloudinaryService.js';
 import PreferenceModel from '../models/PreferenceModel.js';
+import { resolveDistrict, resolveCity } from '../utils/placeResolver.js';
 
 /**
  * Détecte si une URL de photo est une data URL base64 (à uploader vers Cloudinary).
@@ -135,7 +136,19 @@ export const AdService = {
   },
 
   async search(criteria) {
-    return PropertyModel.search(criteria);
+    // Résolution canonique des lieux : "?district=Ngoa ekele" → "Ngoa-Ekellé"
+    // (orthographe exacte en base). Sans ça, l'API directe /ads échouait sur
+    // les variantes tiret/espace/accent alors que le quartier existe.
+    const resolved = { ...criteria };
+    if (resolved.district) {
+      const d = await resolveDistrict(resolved.district);
+      if (d) resolved.district = d;
+    }
+    if (resolved.city) {
+      const c = await resolveCity(resolved.city);
+      if (c) resolved.city = c;
+    }
+    return PropertyModel.search(resolved);
   },
 
   async contactAd(demandeurId, adId) {

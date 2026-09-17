@@ -3,6 +3,7 @@ import AdService from './AdService.js';
 import GeocodingService from './GeocodingService.js';
 import InteractionModel from '../models/InteractionModel.js';
 import { heuristicParse } from '../utils/queryHeuristics.js';
+import { resolveDistrict, resolveCity } from '../utils/placeResolver.js';
 
 /**
  * Fusionne deux jeux de résultats en dédupliquant par ad_id.
@@ -47,6 +48,24 @@ export const AgentAIService = {
       const { criteria: h } = heuristicParse(criteria.near);
       if (h.district) criteria.district = h.district;
       else if (h.city) criteria.city = h.city;
+    }
+
+    // Résolution canonique : "ngoa ekele" → "Ngoa-Ekellé", "yaounde" →
+    // "Yaoundé". Sans ça, un tiret/accent différent fait échouer le ILIKE
+    // et la relaxation retourne toute la ville (le bug vu en prod).
+    if (criteria.district) {
+      const d = await resolveDistrict(criteria.district);
+      if (d) criteria.district = d;
+    }
+    if (criteria.city) {
+      const c = await resolveCity(criteria.city);
+      if (c) criteria.city = c;
+    }
+    // "a cote de ngoa ekele" : si `near` est en fait un quartier connu, on le
+    // met aussi dans `district` — double filet (texte + rayon géocodé).
+    if (criteria.near && !criteria.district) {
+      const d = await resolveDistrict(criteria.near);
+      if (d) criteria.district = d;
     }
 
     // "proche du lycée de X" : `near` peut être posé sans `radiusKm` par

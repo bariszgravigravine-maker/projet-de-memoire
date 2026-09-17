@@ -30,6 +30,43 @@ const KNOWN_LANDMARKS = {
   'marche central': { latitude: 4.0511, longitude: 9.7679, displayName: 'Marché Central, Douala' },
   'cathedrale notre dame': { latitude: 3.8700, longitude: 11.5180, displayName: 'Cathédrale Notre Dame, Yaoundé' },
   'mont febe': { latitude: 3.8900, longitude: 11.4900, displayName: 'Mont Fébé, Yaoundé' },
+  // ── Quartiers de Yaoundé (les noms sont souvent écrits approximativement) ──
+  'bastos': { latitude: 3.8896, longitude: 11.5286, displayName: 'Bastos, Yaoundé' },
+  'bonas': { latitude: 3.8721, longitude: 11.5170, displayName: 'Bonas, Yaoundé' },
+  'ngoa ekele': { latitude: 3.8634, longitude: 11.5031, displayName: 'Ngoa-Ekellé, Yaoundé' },
+  'mvan': { latitude: 3.8339, longitude: 11.5333, displayName: 'Mvan, Yaoundé' },
+  'ekie': { latitude: 3.8556, longitude: 11.5089, displayName: 'Ekie, Yaoundé' },
+  'mfandena': { latitude: 3.8778, longitude: 11.4967, displayName: 'Mfandena, Yaoundé' },
+  'etoudi': { latitude: 3.9008, longitude: 11.5028, displayName: 'Etoudi, Yaoundé' },
+  'tsinga': { latitude: 3.8778, longitude: 11.5100, displayName: 'Tsinga, Yaoundé' },
+  'ekounou': { latitude: 3.8342, longitude: 11.5394, displayName: 'Ekounou, Yaoundé' },
+  'lycee ekounou': { latitude: 3.8342, longitude: 11.5394, displayName: "Lycée d'Ekounou, Yaoundé" },
+  'mvog mbi': { latitude: 3.8583, longitude: 11.5250, displayName: 'Mvog-Mbi, Yaoundé' },
+  'mvog ada': { latitude: 3.8606, longitude: 11.5206, displayName: 'Mvog-Ada, Yaoundé' },
+  'briqueterie': { latitude: 3.8833, longitude: 11.5083, displayName: 'Briqueterie, Yaoundé' },
+  'mokolo': { latitude: 3.8833, longitude: 11.5000, displayName: 'Mokolo, Yaoundé' },
+  'nlongkak': { latitude: 3.8778, longitude: 11.5153, displayName: 'Nlongkak, Yaoundé' },
+  'essos': { latitude: 3.8833, longitude: 11.5250, displayName: 'Essos, Yaoundé' },
+  'mendong': { latitude: 3.8300, longitude: 11.5000, displayName: 'Mendong, Yaoundé' },
+  'odza': { latitude: 3.8100, longitude: 11.5400, displayName: 'Odza, Yaoundé' },
+  'awae': { latitude: 3.9200, longitude: 11.5500, displayName: 'Awae, Yaoundé' },
+  'emana': { latitude: 3.8250, longitude: 11.5600, displayName: 'Emana, Yaoundé' },
+  'nkolbisson': { latitude: 3.8800, longitude: 11.4500, displayName: 'Nkolbisson, Yaoundé' },
+  'nsimeyong': { latitude: 3.8550, longitude: 11.4950, displayName: 'Nsimeyong, Yaoundé' },
+  'damas': { latitude: 3.8450, longitude: 11.5450, displayName: 'Damas, Yaoundé' },
+  'nkol eton': { latitude: 3.8680, longitude: 11.4880, displayName: 'Nkol-Eton, Yaoundé' },
+  // ── Quartiers de Douala ──
+  'bonapriso': { latitude: 4.0210, longitude: 9.6950, displayName: 'Bonapriso, Douala' },
+  'akwa': { latitude: 4.0500, longitude: 9.7000, displayName: 'Akwa, Douala' },
+  'bonanjo': { latitude: 4.0400, longitude: 9.6900, displayName: 'Bonanjo, Douala' },
+  'bonamoussadi': { latitude: 4.0800, longitude: 9.7200, displayName: 'Bonamoussadi, Douala' },
+  'deido': { latitude: 4.0600, longitude: 9.7100, displayName: 'Deido, Douala' },
+  'new bell': { latitude: 4.0300, longitude: 9.7500, displayName: 'New Bell, Douala' },
+  'bepanda': { latitude: 4.0700, longitude: 9.7300, displayName: 'Bepanda, Douala' },
+  'logbaba': { latitude: 4.0300, longitude: 9.7200, displayName: 'Logbaba, Douala' },
+  'makepe': { latitude: 4.0900, longitude: 9.7400, displayName: 'Makepe, Douala' },
+  'bonaberi': { latitude: 4.0700, longitude: 9.6500, displayName: 'Bonaberi, Douala' },
+  'ndokoti': { latitude: 4.0600, longitude: 9.7200, displayName: 'Ndokoti, Douala' },
 };
 
 function normalizeName(str) {
@@ -38,7 +75,23 @@ function normalizeName(str) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/^(l['’]|le |la |les |de |d['’]|du |des |a cote de |pres de |proche de |pas loin de |entree de |entree )+/g, '')
+    .replace(/[-_']/g, ' ')
+    .replace(/(.)\1+/g, '$1') // lettres doublées : "ekelle" → "ekele"
+    .replace(/\s+/g, ' ')
     .trim();
+}
+
+// Index des repères connus avec clés normalisées — "Ngoa-Ekellé",
+// "ngoa ekele", "NGOA EKELLE"… matchent tous la même entrée.
+let _landmarkIndex = null;
+function landmarkIndex() {
+  if (!_landmarkIndex) {
+    _landmarkIndex = new Map();
+    for (const [key, coords] of Object.entries(KNOWN_LANDMARKS)) {
+      _landmarkIndex.set(normalizeName(key), coords);
+    }
+  }
+  return _landmarkIndex;
 }
 
 /**
@@ -85,10 +138,11 @@ export const GeocodingService = {
   async geocodeLandmark(name) {
     if (!name) return null;
     const norm = normalizeName(name);
-    // 1. Correspondance exacte
-    if (KNOWN_LANDMARKS[norm]) return KNOWN_LANDMARKS[norm];
+    const index = landmarkIndex();
+    // 1. Correspondance exacte (clés déjà normalisées)
+    if (index.has(norm)) return index.get(norm);
     // 2. Correspondance partielle : "l'entree de la beac a yaounde" → "beac"
-    for (const [key, coords] of Object.entries(KNOWN_LANDMARKS)) {
+    for (const [key, coords] of index) {
       if (norm.includes(key) || key.includes(norm)) return coords;
     }
     // 3. Nominatim

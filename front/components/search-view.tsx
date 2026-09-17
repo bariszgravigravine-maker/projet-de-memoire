@@ -13,8 +13,23 @@ const PROPERTY_TYPES = ["Tous", "maison", "appartement", "studio", "chambre", "v
 // Quartiers populaires de Yaoundé et Douala (pour la recherche par place)
 const POPULAR_DISTRICTS = [
   "Bastos", "Bonas", "Ngoa-Ekellé", "Mvan", "Ekie", "Mfandena", "Omnisport", "Etoudi", "Tsinga", "Ekounou",
-  "Bonapriso", "Akwa", "Bonanjo", "Bonamoussadi", "Deido", "Bepanda", "Logbaba", "Makepe",
+  "Mvog-Mbi", "Mvog-Ada", "Briqueterie", "Mokolo", "Nlongkak", "Essos", "Mendong", "Odza", "Emana",
+  "Nkolbisson", "Nsimeyong", "Damas", "Nkol-Eton",
+  "Bonapriso", "Akwa", "Bonanjo", "Bonamoussadi", "Deido", "New Bell", "Bepanda", "Logbaba", "Makepe", "Bonaberi", "Ndokoti",
 ]
+
+// Normalisation commune des noms de lieux : "ngoa ekele", "Ngoa-Ekellé",
+// "NGOA EKELLE"… matchent tous la même forme ("ngoa ekele").
+function normalizePlace(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[-_']/g, " ")
+    .replace(/(.)\1+/g, "$1") // lettres doublées : "ekelle" → "ekele"
+    .replace(/\s+/g, " ")
+    .trim()
+}
 
 // Retire les marqueurs markdown résiduels de la réponse IA (**gras**, ##, listes "-")
 // pour un affichage en texte brut propre — le détail des biens est dans le tableau.
@@ -218,12 +233,13 @@ export function SearchView() {
         // Dernier recours : récupère tous et filtre côté client
         json = await getAds()
         const all = json.data?.results || json.results || []
-        const ql = q.toLowerCase()
+        const norm = normalizePlace
+        const ql = norm(q)
         data = all.filter((p: any) =>
-          (p.city && p.city.toLowerCase().includes(ql)) ||
-          (p.district && p.district.toLowerCase().includes(ql)) ||
-          (p.title && p.title.toLowerCase().includes(ql)) ||
-          (p.address && p.address.toLowerCase().includes(ql))
+          (p.city && norm(p.city).includes(ql)) ||
+          (p.district && norm(p.district).includes(ql)) ||
+          (p.title && norm(p.title).includes(ql)) ||
+          (p.address && norm(p.address).includes(ql))
         )
       }
 
@@ -254,7 +270,7 @@ export function SearchView() {
       const params: Record<string, string | number> = {}
       if (query.trim()) {
         // Si la query ressemble à un quartier connu, on cherche par district
-        const isDistrict = POPULAR_DISTRICTS.some(d => d.toLowerCase() === query.trim().toLowerCase())
+        const isDistrict = POPULAR_DISTRICTS.some(d => normalizePlace(d) === normalizePlace(query.trim()))
         if (isDistrict) {
           params.district = query.trim()
         } else {
@@ -370,7 +386,7 @@ export function SearchView() {
   // Suggestions de lieux pendant la frappe
   const suggestions = query.trim().length > 0
     ? [...POPULAR_CITIES, ...POPULAR_DISTRICTS]
-        .filter(s => s.toLowerCase().includes(query.trim().toLowerCase()))
+        .filter(s => normalizePlace(s).includes(normalizePlace(query.trim())))
         .slice(0, 6)
     : []
 
