@@ -2,12 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, MoreVertical, Phone, Video, Search, Send, LayoutDashboard } from "lucide-react"
+import { ArrowLeft, MoreVertical, Phone, Video, Search, Send, LayoutDashboard, PhoneIncoming, PhoneOff } from "lucide-react"
 import { UserChatComposer } from "@/components/user-chat-composer"
+import { CallOverlay } from "@/components/call-overlay"
 import { Skeleton } from "@/components/skeleton"
 import { cn } from "@/lib/utils"
 import {
-  listConversations, getMessages, sendMessage as apiSendMessage, countUnreadMessages, getUser
+  listConversations, getMessages, sendMessage as apiSendMessage, countUnreadMessages, getUser,
+  startCall as apiStartCall, joinCall as apiJoinCall, endCall as apiEndCall
 } from "@/lib/api"
 import { useRealtime } from "@/components/realtime-provider"
 
@@ -56,6 +58,12 @@ function MessagesContent() {
   const [showList, setShowList] = useState(true)
   const [unreadTotal, setUnreadTotal] = useState(0)
   const { socket, setUnreadMessages, onlineUsers } = useRealtime()
+
+  // Appels LiveKit
+  type ActiveCall = { token: string; url: string; video: boolean; conversationId: string; peerName: string }
+  type IncomingCall = { conversationId: string; video: boolean; callerId: string; callerName: string; callerPhoto?: string }
+  const [activeCall, setActiveCall] = useState<ActiveCall | null>(null)
+  const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null)
   const isOnline = useCallback((userId?: string) => !!userId && onlineUsers.includes(userId), [onlineUsers])
 
   const refreshUnread = useCallback(async () => {
@@ -158,7 +166,25 @@ function MessagesContent() {
       fetchConversations(true)
     }
     socket.on("message", onMessage)
-    return () => { socket.off("message", onMessage) }
+
+    // Appels entrants / fin d'appel
+    const onCallIncoming = (payload: IncomingCall) => setIncomingCall(payload)
+    const onCallEnded = (payload: { conversationId?: string }) => {
+      setIncomingCall((prev) => (prev && prev.conversationId === payload?.conversationId ? null : prev))
+      setActiveCall((prev) => {
+        if (prev && prev.conversationId === payload?.conversationId) {
+          setTimeout(() => setActiveCall(null), 500)
+        }
+        return prev
+      })
+    }
+    socket.on("call:incoming", onCallIncoming)
+    socket.on("call:ended", onCallEnded)
+    return () => {
+      socket.off("message", onMessage)
+      socket.off("call:incoming", onCallIncoming)
+      socket.off("call:ended", onCallEnded)
+    }
   }, [socket, selectedId, fetchMessages, fetchConversations, refreshUnread])
 
   const handleSend = useCallback(async (content: string, imageData?: string) => {
@@ -204,6 +230,45 @@ function MessagesContent() {
   }, [selectedId, fetchMessages, fetchConversations])
 
   const selected = conversations.find((c) => c.id === selectedId)
+
+  // ── Appels LiveKit ──
+  const handleStartCall = useCallback(async (video: boolean) => {
+    if (!selected) return
+    try {
+      const res = await apiStartCall(selected.id, video)
+      const d = res?.data || res
+      setActiveCall({ token: d.token, url: d.url, video, conversationId: selected.id, peerName: selected.name })
+    } catch (err: any) {
+      alert(err.message || "Impossible de démarrer l'appel")
+    }
+  }, [selected])
+
+  const handleAcceptCall = useCallback(async () => {
+    if (!incomingCall) return
+    try {
+      const res = await apiJoinCall(incomingCall.conversationId)
+      const d = res?.data || res
+      setActiveCall({
+        token: d.token, url: d.url, video: incomingCall.video,
+        conversationId: incomingCall.conversationId, peerName: incomingCall.callerName,
+      })
+      setIncomingCall(null)
+    } catch (err: any) {
+      alert(err.message || "Impossible de rejoindre l'appel")
+      setIncomingCall(null)
+    }
+  }, [incomingCall])
+
+  const handleDeclineCall = useCallback(() => {
+    if (!incomingCall) return
+    apiEndCall(incomingCall.conversationId, "declined").catch(() => {})
+    setIncomingCall(null)
+  }, [incomingCall])
+
+  const handleLeaveCall = useCallback(() => {
+    if (activeCall) apiEndCall(activeCall.conversationId, "ended").catch(() => {})
+    setActiveCall(null)
+  }, [activeCall])
 
   return (
     <div className="h-screen flex bg-stone-50 overflow-hidden">
@@ -322,10 +387,18 @@ function MessagesContent() {
               </div>
 
               <div className="flex items-center gap-1">
-                <button className="p-2 rounded-full hover:bg-stone-100 text-stone-600">
+                <button
+                  onClick={() => handleStartCall(false)}
+                  className="p-2 rounded-full hover:bg-stone-100 text-stone-600 transition-colors"
+                  title="Appel audio"
+                >
                   <Phone className="w-5 h-5" />
                 </button>
-                <button className="p-2 rounded-full hover:bg-stone-100 text-stone-600">
+                <button
+                  onClick={() => handleStartCall(true)}
+                  className="p-2 rounded-full hover:bg-stone-100 text-stone-600 transition-colors"
+                  title="Appel vidéo"
+                >
                   <Video className="w-5 h-5" />
                 </button>
                 <button className="p-2 rounded-full hover:bg-stone-100 text-stone-600">
@@ -414,6 +487,52 @@ function MessagesContent() {
           </div>
         )}
       </main>
+
+      {/* Appel entrant */}
+      {incomingCall && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-6 w-72 text-center shadow-2xl anim-pop-in">
+            {incomingCall.callerPhoto ? (
+              <img src={incomingCall.callerPhoto} alt="" className="w-16 h-16 rounded-full object-cover mx-auto" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-foreground text-background flex items-center justify-center text-lg font-bold mx-auto">
+                {getInitials(incomingCall.callerName || "?")}
+              </div>
+            )}
+            <p className="mt-3 font-semibold text-foreground">{incomingCall.callerName}</p>
+            <p className="text-xs text-stone-500 mt-1">
+              {incomingCall.video ? "Appel vidéo entrant" : "Appel audio entrant"}
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-6">
+              <button
+                onClick={handleDeclineCall}
+                className="w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-colors"
+                title="Refuser"
+              >
+                <PhoneOff className="w-5 h-5" />
+              </button>
+              <button
+                onClick={handleAcceptCall}
+                className="w-12 h-12 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center transition-colors animate-bounce"
+                title="Décrocher"
+              >
+                <PhoneIncoming className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Appel actif (LiveKit) */}
+      {activeCall && (
+        <CallOverlay
+          token={activeCall.token}
+          serverUrl={activeCall.url}
+          video={activeCall.video}
+          peerName={activeCall.peerName}
+          onLeave={handleLeaveCall}
+        />
+      )}
     </div>
   )
 }

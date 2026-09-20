@@ -207,6 +207,25 @@ export async function countUnreadMessages() {
   return apiFetch("/chat/unread/count")
 }
 
+// === APPELS AUDIO/VIDÉO (LiveKit) ===
+export async function startCall(conversationId: string, video: boolean) {
+  return apiFetch(`/chat/conversations/${conversationId}/call`, {
+    method: "POST",
+    body: JSON.stringify({ video }),
+  })
+}
+
+export async function joinCall(conversationId: string) {
+  return apiFetch(`/chat/conversations/${conversationId}/call/join`, { method: "POST" })
+}
+
+export async function endCall(conversationId: string, reason = "ended") {
+  return apiFetch(`/chat/conversations/${conversationId}/call/end`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  })
+}
+
 // === AGENT IA ===
 export async function agentSearch(message: string) {
   return apiFetch("/agent/search", { method: "POST", body: JSON.stringify({ message }) })

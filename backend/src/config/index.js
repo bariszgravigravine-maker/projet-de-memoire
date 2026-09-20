@@ -31,6 +31,13 @@ export const config = {
     visionModel: process.env.MISTRAL_VISION_MODEL || 'pixtral-12b-2409',
   },
 
+  livekit: {
+    // URL publique wss:// exposée aux clients (terminée en TLS par Nginx sur le VPS)
+    url: process.env.LIVEKIT_URL || 'wss://vps123057.serveur-vps.net',
+    apiKey: process.env.LIVEKIT_API_KEY || '',
+    apiSecret: process.env.LIVEKIT_API_SECRET || '',
+  },
+
   cors: {
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   },

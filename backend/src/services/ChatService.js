@@ -1,5 +1,39 @@
+import { AccessToken } from 'livekit-server-sdk';
 import { ConversationModel, MessageModel } from '../models/ChatModel.js';
+import UserModel from '../models/UserModel.js';
 import NotificationService from './NotificationService.js';
+import { config } from '../config/index.js';
+
+const callRoom = (conversationId) => `conv-${conversationId}`;
+
+async function assertParticipant(myId, conversationId) {
+  const conv = await ConversationModel.findById(conversationId);
+  if (!conv) {
+    const err = new Error('Conversation introuvable');
+    err.status = 404;
+    throw err;
+  }
+  if (conv.user_a_id !== myId && conv.user_b_id !== myId) {
+    const err = new Error('Accès refusé à cette conversation');
+    err.status = 403;
+    throw err;
+  }
+  return conv;
+}
+
+const otherParticipant = (conv, myId) => (conv.user_a_id === myId ? conv.user_b_id : conv.user_a_id);
+
+async function buildCallToken(myId, conversationId) {
+  const user = await UserModel.findById(myId);
+  const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : `user-${myId}`;
+  const at = new AccessToken(config.livekit.apiKey, config.livekit.apiSecret, {
+    identity: String(myId),
+    name: name || `user-${myId}`,
+    ttl: '2h',
+  });
+  at.addGrant({ roomJoin: true, room: callRoom(conversationId), canPublish: true, canSubscribe: true });
+  return at.toJwt();
+}
 
 /**
  * Service de messagerie temps réel (chat).
@@ -99,6 +133,55 @@ export const ChatService = {
 
   async countUnread(myId) {
     return { count: await MessageModel.countUnread(myId) };
+  },
+
+  /**
+   * Démarre un appel : génère le token de l'appelant et notifie le destinataire
+   * via Socket.IO (événement "call:incoming").
+   */
+  async startCall(myId, conversationId, video) {
+    const conv = await assertParticipant(myId, conversationId);
+    if (!config.livekit.apiKey || !config.livekit.apiSecret) {
+      const err = new Error('Serveur d\'appel non configuré');
+      err.status = 503;
+      throw err;
+    }
+    const caller = await UserModel.findById(myId);
+    const recipientId = otherParticipant(conv, myId);
+    const token = await buildCallToken(myId, conversationId);
+    const payload = {
+      conversationId,
+      room: callRoom(conversationId),
+      video: !!video,
+      callerId: myId,
+      callerName: caller ? `${caller.first_name || ''} ${caller.last_name || ''}`.trim() : 'Utilisateur',
+      callerPhoto: caller?.profile_photo_url || null,
+    };
+    if (global.io) {
+      global.io.to(`user:${recipientId}`).emit('call:incoming', payload);
+    }
+    return { token, url: config.livekit.url, room: payload.room };
+  },
+
+  /** Le destinataire rejoint l'appel en cours. */
+  async joinCall(myId, conversationId) {
+    const conv = await assertParticipant(myId, conversationId);
+    const token = await buildCallToken(myId, conversationId);
+    const recipientId = otherParticipant(conv, myId);
+    if (global.io) {
+      global.io.to(`user:${recipientId}`).emit('call:accepted', { conversationId });
+    }
+    return { token, url: config.livekit.url, room: callRoom(conversationId) };
+  },
+
+  /** Refus / raccrochage / annulation : notifie l'autre participant. */
+  async endCall(myId, conversationId, reason = 'ended') {
+    const conv = await assertParticipant(myId, conversationId);
+    const recipientId = otherParticipant(conv, myId);
+    if (global.io) {
+      global.io.to(`user:${recipientId}`).emit('call:ended', { conversationId, reason });
+    }
+    return { ok: true };
   },
 };
 
