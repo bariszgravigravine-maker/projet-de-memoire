@@ -63,7 +63,7 @@ export default function AIChatPage() {
     },
   ])
   const [loading, setLoading] = useState(false)
-  const [selectedModel, setSelectedModel] = useState<AIModel>("google/gemini-2.0-flash-001")
+  const [selectedModel, setSelectedModel] = useState<AIModel>("mistral/codestral-latest")
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {

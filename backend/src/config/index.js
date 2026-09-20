@@ -15,7 +15,12 @@ export const config = {
   },
 
   jwt: {
-    secret: process.env.JWT_SECRET || 'fallback_dev_secret',
+    secret: process.env.JWT_SECRET || (() => {
+      if ((process.env.NODE_ENV || 'development') === 'production') {
+        throw new Error('JWT_SECRET est obligatoire en production. Définissez-le dans le fichier .env.');
+      }
+      return 'dev_only_secret_do_not_use_in_prod';
+    })(),
     expiresIn: parseInt(process.env.JWT_EXPIRES_IN, 10) || 86400000,
   },
 

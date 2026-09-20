@@ -4,23 +4,14 @@ import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from "re
 import Image from "next/image"
 import { Square, Mic, MicOff, Brain, Paperclip, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuPortal,
-} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { AIChatOrb } from "@/components/ai-chat-orb"
 import { AIChatWaveform } from "@/components/ai-chat-waveform"
 
-export type AIModel = "google/gemini-2.0-flash-001" | "openai/gpt-4o" | "anthropic/claude-sonnet-4"
+export type AIModel = "mistral/codestral-latest"
 
 export const AI_MODELS: { id: AIModel; name: string; icon: string }[] = [
-  { id: "google/gemini-2.0-flash-001", name: "Gemini", icon: "/images/google.webp" },
-  { id: "openai/gpt-4o", name: "GPT-4o", icon: "/images/gpt.png" },
-  { id: "anthropic/claude-sonnet-4", name: "Claude", icon: "/images/claude.svg" },
+  { id: "mistral/codestral-latest", name: "Mistral AI", icon: "/icon.svg" },
 ]
 
 interface AIChatComposerProps {
@@ -37,7 +28,7 @@ export function AIChatComposer({
   onStop,
   isStreaming = false,
   disabled = false,
-  selectedModel = "google/gemini-2.0-flash-001",
+  selectedModel = "mistral/codestral-latest",
   onModelChange,
 }: AIChatComposerProps) {
   const [value, setValue] = useState("")
@@ -267,38 +258,13 @@ export function AIChatComposer({
               <Paperclip className="w-4 h-4" />
             </Button>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  disabled={isStreaming || disabled}
-                  className="h-9 w-9 shrink-0 bg-zinc-100 hover:bg-zinc-200 text-stone-700 rounded-full"
-                  aria-label="Select AI model"
-                >
-                  <Brain className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuPortal>
-                <DropdownMenuContent align="start" side="top" sideOffset={8} className="w-40 px-2 py-2 rounded-2xl z-[9999]">
-                  {AI_MODELS.map((model) => (
-                    <DropdownMenuItem
-                      key={model.id}
-                      onClick={() => onModelChange?.(model.id)}
-                      className={cn(
-                        "flex items-center cursor-pointer gap-3 rounded-lg",
-                        selectedModel === model.id && "bg-stone-100"
-                      )}
-                    >
-                      <Image src={model.icon || "/placeholder.svg"} alt={model.name} width={20} height={20} className="rounded-sm object-contain w-4 h-4" />
-                      <span className="text-sm">{model.name}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenuPortal>
-            </DropdownMenu>
-
-            <span className="text-xs text-stone-400">{currentModel.name}</span>
+            <div
+              className="h-9 shrink-0 px-3 bg-zinc-100 text-stone-700 rounded-full flex items-center gap-2"
+              aria-label="AI model"
+            >
+              <Brain className="w-4 h-4" />
+              <span className="text-xs">{currentModel.name}</span>
+            </div>
           </div>
         </div>
       </div>

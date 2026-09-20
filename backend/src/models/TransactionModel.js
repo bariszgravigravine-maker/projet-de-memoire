@@ -1,4 +1,4 @@
-import { query } from '../config/db.js';
+import { query, queryOne } from '../config/db.js';
 
 /**
  * Modèle pour les transactions immobilières utilisées par le module
@@ -10,10 +10,9 @@ export const TransactionModel = {
       INSERT INTO transactions (property_type, area, bedrooms, bathrooms, city, district, latitude, longitude, price)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
     `;
-    const { rows } = await require('../config/db.js').pool.query(sql, [
+    return queryOne(sql, [
       propertyType, area, bedrooms, bathrooms, city, district, latitude, longitude, price,
     ]);
-    return rows[0];
   },
 
   async listAll({ limit = 5000 } = {}) {

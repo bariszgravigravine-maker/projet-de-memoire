@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeft, Check, X, Users, Home, BarChart3,
-  Shield, Ban, Trash2, AlertCircle
+  Shield, Ban, Trash2, AlertCircle, Loader2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/skeleton"

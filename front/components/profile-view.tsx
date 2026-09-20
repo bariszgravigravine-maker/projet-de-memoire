@@ -176,10 +176,10 @@ export function ProfileView() {
   }
 
   const toggleArrayValue = (field: "preferred_types" | "preferred_zones", value: string) => {
-    setForm((prev) => ({
+    setForm((prev: any) => ({
       ...prev,
       [field]: prev[field].includes(value)
-        ? prev[field].filter((v) => v !== value)
+        ? prev[field].filter((v: string) => v !== value)
         : [...prev[field], value],
     }))
   }
@@ -395,7 +395,7 @@ export function ProfileView() {
               {/* Preferred chips */}
               {user.preferred_types.length > 0 && (
                 <div className="flex flex-wrap justify-center gap-2">
-                  {user.preferred_types.map((type) => (
+                  {user.preferred_types.map((type: string) => (
                     <span
                       key={type}
                       className="px-3 py-1 rounded-full text-xs font-medium bg-foreground text-background"
