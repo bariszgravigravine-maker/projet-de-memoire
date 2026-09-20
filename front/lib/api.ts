@@ -186,10 +186,14 @@ export async function getMessages(conversationId: string) {
   return apiFetch(`/chat/conversations/${conversationId}/messages`)
 }
 
-export async function sendMessage(conversationId: string, content: string) {
+export async function sendMessage(
+  conversationId: string,
+  content: string,
+  attachment?: { url: string; type: string; name?: string }
+) {
   return apiFetch(`/chat/conversations/${conversationId}/messages`, {
     method: "POST",
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, attachment }),
   })
 }
 

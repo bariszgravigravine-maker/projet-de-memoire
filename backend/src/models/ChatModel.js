@@ -25,10 +25,19 @@ export const ConversationModel = {
              CASE WHEN c.user_a_id = $1 THEN ub.id ELSE ua.id END AS other_user_id,
              CASE WHEN c.user_a_id = $1 THEN ub.first_name ELSE ua.first_name END AS other_first_name,
              CASE WHEN c.user_a_id = $1 THEN ub.last_name ELSE ua.last_name END AS other_last_name,
-             CASE WHEN c.user_a_id = $1 THEN ub.profile_photo_url ELSE ua.profile_photo_url END AS other_photo
+             CASE WHEN c.user_a_id = $1 THEN ub.profile_photo_url ELSE ua.profile_photo_url END AS other_photo,
+             lm.content AS last_message,
+             (SELECT COUNT(*)::int FROM messages m
+              WHERE m.conversation_id = c.id AND m.sender_id != $1 AND m.is_read = false
+             ) AS unread_count
       FROM conversations c
       JOIN users ua ON c.user_a_id = ua.id
       JOIN users ub ON c.user_b_id = ub.id
+      LEFT JOIN LATERAL (
+        SELECT m.content FROM messages m
+        WHERE m.conversation_id = c.id
+        ORDER BY m.sent_at DESC LIMIT 1
+      ) lm ON true
       WHERE c.user_a_id = $1 OR c.user_b_id = $1
       ORDER BY c.last_message_at DESC NULLS LAST
     `;

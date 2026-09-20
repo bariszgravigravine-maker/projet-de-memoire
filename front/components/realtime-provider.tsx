@@ -12,6 +12,7 @@ interface RealtimeContextValue {
   incrementMessages: () => void
   incrementNotifs: () => void
   connected: boolean
+  socket: Socket | null
 }
 
 const RealtimeContext = createContext<RealtimeContextValue>({
@@ -22,6 +23,7 @@ const RealtimeContext = createContext<RealtimeContextValue>({
   incrementMessages: () => {},
   incrementNotifs: () => {},
   connected: false,
+  socket: null,
 })
 
 export function useRealtime() {
@@ -102,6 +104,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         incrementMessages,
         incrementNotifs,
         connected,
+        socket,
       }}
     >
       {children}

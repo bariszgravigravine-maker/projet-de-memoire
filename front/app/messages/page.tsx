@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import {
   listConversations, getMessages, sendMessage as apiSendMessage, countUnreadMessages, getUser
 } from "@/lib/api"
+import { useRealtime } from "@/components/realtime-provider"
 
 type Message = {
   id: string
@@ -54,6 +55,16 @@ function MessagesContent() {
   const [error, setError] = useState<string | null>(null)
   const [showList, setShowList] = useState(true)
   const [unreadTotal, setUnreadTotal] = useState(0)
+  const { socket, setUnreadMessages } = useRealtime()
+
+  const refreshUnread = useCallback(async () => {
+    try {
+      const res = await countUnreadMessages()
+      const count = res.data?.count || 0
+      setUnreadTotal(count)
+      setUnreadMessages(count)
+    } catch {}
+  }, [setUnreadMessages])
 
   const fetchConversations = useCallback(async () => {
     setLoadingConvs(true)
@@ -76,7 +87,9 @@ function MessagesContent() {
         targetUserId: c.other_user_id || c.target_user_id,
       }))
       setConversations(mapped)
-      setUnreadTotal(unreadRes.data?.count || 0)
+      const unreadCount = unreadRes.data?.count || 0
+      setUnreadTotal(unreadCount)
+      setUnreadMessages(unreadCount)
       // Si un conversationId est dans l'URL, le sélectionner en priorité
       if (initialConvId) {
         setSelectedId(initialConvId)
@@ -88,7 +101,7 @@ function MessagesContent() {
     } finally {
       setLoadingConvs(false)
     }
-  }, [selectedId, initialConvId])
+  }, [selectedId, initialConvId, setUnreadMessages])
 
   const fetchMessages = useCallback(async (convId: string) => {
     setLoadingMsgs(true)
@@ -107,12 +120,14 @@ function MessagesContent() {
         attachment_name: m.attachment_name,
       }))
       setMessages(mapped)
+      // Le backend marque les messages reçus comme lus : on recalcule le compteur
+      refreshUnread()
     } catch (err: any) {
       setMessages([])
     } finally {
       setLoadingMsgs(false)
     }
-  }, [])
+  }, [refreshUnread])
 
   useEffect(() => {
     fetchConversations()
@@ -129,20 +144,39 @@ function MessagesContent() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
   }, [messages])
 
-  const handleSend = useCallback(async (content: string) => {
-    if (!selectedId || !content.trim()) return
+  // Réception temps réel via Socket.IO
+  useEffect(() => {
+    if (!socket) return
+    const onMessage = (payload: { conversationId?: string }) => {
+      if (payload?.conversationId === selectedId) {
+        fetchMessages(selectedId)
+      } else {
+        refreshUnread()
+      }
+      fetchConversations()
+    }
+    socket.on("message", onMessage)
+    return () => { socket.off("message", onMessage) }
+  }, [socket, selectedId, fetchMessages, fetchConversations, refreshUnread])
+
+  const handleSend = useCallback(async (content: string, imageData?: string) => {
+    if (!selectedId || (!content.trim() && !imageData)) return
     setSending(true)
     const tempMsg: Message = {
       id: `temp-${Date.now()}`,
       role: "me",
       content,
       time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+      attachment_url: imageData,
+      attachment_type: imageData ? "image" : undefined,
     }
     setMessages((prev) => [...prev, tempMsg])
     try {
-      await apiSendMessage(selectedId, content)
+      const attachment = imageData ? { url: imageData, type: "image", name: "photo.jpg" } : undefined
+      await apiSendMessage(selectedId, content, attachment)
       // Refresh messages to get the real message with ID
       fetchMessages(selectedId)
+      fetchConversations()
     } catch (err: any) {
       // Remove temp message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempMsg.id))
@@ -150,7 +184,7 @@ function MessagesContent() {
     } finally {
       setSending(false)
     }
-  }, [selectedId, fetchMessages])
+  }, [selectedId, fetchMessages, fetchConversations])
 
   const selected = conversations.find((c) => c.id === selectedId)
 
