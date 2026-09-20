@@ -152,13 +152,9 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
         // Perf : le style MapTiler est fiable, inutile de le re-valider à
         // chaque init (économise le parsing/validation du style JSON).
         validateStyle: false,
-        // La plateforme ne couvre que le grand Yaoundé (+ Mfou) : borner la
-        // caméra empêche de charger des tuiles hors zone et concentre le
-        // cache sur la ville.
-        maxBounds: [
-          [11.2, 3.55],
-          [11.9, 4.2],
-        ],
+        // NB : pas de maxBounds — borner la caméra au grand Yaoundé cachait
+        // le point bleu de géolocalisation et clampait fitBounds/flyToZone
+        // pour tout utilisateur situé hors de la zone.
       })
     } catch (err: any) {
       console.error("[Map] Erreur d'initialisation:", err)
