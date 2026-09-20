@@ -6,6 +6,44 @@ import { heuristicParse } from '../utils/queryHeuristics.js';
 import { resolveDistrict, resolveCity } from '../utils/placeResolver.js';
 
 /**
+ * Distance Haversine en km entre deux points (lat/lon en degrés).
+ */
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/**
+ * Classe les biens par proximité du lieu repère géocodé : le plus proche
+ * d'abord (le plus "sur"), puis de moins en moins proche. Ajoute distanceKm
+ * à chaque bien pour l'afficher dans le tableau du chat.
+ */
+function sortByProximity(results, geo) {
+  if (!geo || typeof geo.latitude !== 'number' || typeof geo.longitude !== 'number') {
+    return results;
+  }
+  return results
+    .map((r) => {
+      const lat = Number(r.latitude);
+      const lon = Number(r.longitude);
+      if (!isNaN(lat) && !isNaN(lon)) {
+        return {
+          ...r,
+          distanceKm: Math.round(haversineKm(geo.latitude, geo.longitude, lat, lon) * 10) / 10,
+        };
+      }
+      return r;
+    })
+    .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+}
+
+/**
  * Fusionne deux jeux de résultats en dédupliquant par ad_id.
  * Les biens du premier tableau (résultats géolocalisés, plus pertinents)
  * apparaissent en premier ; le tri par pertinence est donc préservé.
@@ -145,6 +183,11 @@ export const AgentAIService = {
       );
     }
 
+    // Classe les résultats par proximité du lieu repère géocodé (le plus
+    // proche/sur d'abord) et ajoute distanceKm à chaque bien pour que le
+    // front puisse afficher la distance dans le tableau.
+    const rankedResults = sortByProximity(results, geo);
+
     // 5. Réponse conversationnelle formatée par Mistral.
     //    Si des critères ont été relâchés, on le précise dans le contexte pour
     //    que l'IA puisse dire "j'ai élargi la recherche".
@@ -155,11 +198,15 @@ export const AgentAIService = {
 
     return {
       criteria,
-      results,
+      results: rankedResults,
       response,
-      count: results.length,
+      count: rankedResults.length,
       // Indique au front si la recherche a été restreinte à un rayon géographique
       geocoded: Boolean(geo),
+      // Centre géocodé du lieu repère (pour trier par proximité côté client)
+      geo: geo
+        ? { latitude: geo.latitude, longitude: geo.longitude, displayName: geo.displayName || null }
+        : null,
       // Critères relâchés (ex: "type", "type+district") si recherche élargie
       relaxed,
       explanation: explanation || null,

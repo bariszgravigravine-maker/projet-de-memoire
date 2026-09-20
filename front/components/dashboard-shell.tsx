@@ -28,6 +28,7 @@ const NAV_ITEMS: { id: NavItem; icon: typeof Home; label: string }[] = [
   { id: "liked", icon: Heart, label: "Saved" },
   { id: "tours", icon: Calendar, label: "Tours" },
   { id: "search", icon: Search, label: "Search" },
+  { id: "messages", icon: MessageSquare, label: "Messages" },
   { id: "profile", icon: User, label: "Profile" },
 ]
 

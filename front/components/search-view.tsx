@@ -31,6 +31,37 @@ function normalizePlace(s: string): string {
     .trim()
 }
 
+// Distance Haversine en km entre deux points (lat/lon en degrés)
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(a))
+}
+
+// Attache distanceKm (Haversine) à chaque bien et trie du plus proche au plus
+// éloigné du centre géocodé. Repli front si le backend n'a pas classé.
+function rankByProximity(data: any[], geo: { latitude: number; longitude: number } | null): any[] {
+  if (!geo) return data
+  return data
+    .map((r) => {
+      const lat = Number(r.latitude)
+      const lon = Number(r.longitude)
+      if (r.distanceKm == null && !isNaN(lat) && !isNaN(lon)) {
+        return {
+          ...r,
+          distanceKm: Math.round(haversineKm(geo.latitude, geo.longitude, lat, lon) * 10) / 10,
+        }
+      }
+      return r
+    })
+    .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity))
+}
+
 // Retire les marqueurs markdown résiduels de la réponse IA (**gras**, ##, listes "-")
 // pour un affichage en texte brut propre — le détail des biens est dans le tableau.
 function stripMarkdown(text: string): string {
@@ -92,6 +123,8 @@ export function SearchView() {
   const [aiMode, setAiMode] = useState(false)
   const [aiResponse, setAiResponse] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
+  // Centre géocodé du lieu repère de la recherche IA (tri par proximité)
+  const [aiGeo, setAiGeo] = useState<{ latitude: number; longitude: number; displayName?: string | null } | null>(null)
   const [zoneLoading, setZoneLoading] = useState(false)
   const [zoneInfo, setZoneInfo] = useState<string | null>(null)
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -300,13 +333,19 @@ export function SearchView() {
     setSearched(true)
     setLoading(true)
     setAiResponse(null)
+    setAiGeo(null)
     setSelectedProperty(null)
     setRouteTarget(null)
     try {
       const json = await agentSearch(query.trim())
       const payload = json.data || json
-      const data = payload.results || []
+      let data = payload.results || []
+      // Classe les biens par proximité du lieu repère géocodé : le plus
+      // proche (le plus "sur") d'abord, jusqu'au plus éloigné.
+      const geo = payload.geo || null
+      data = rankByProximity(data, geo)
       setResults(data)
+      setAiGeo(geo)
       // Nettoie un éventuel markdown résiduel de l'IA (**gras**, ## titres,
       // listes "-") : le front affiche la réponse en texte brut + un tableau.
       const rawResponse = payload.response || null
@@ -357,6 +396,19 @@ export function SearchView() {
       setRouteTarget(selectedProperty)
     }
   }, [selectedProperty])
+
+  // Trace l'itinéraire directement depuis le tableau de la réponse IA :
+  // on garde tous les marqueurs, le tracé vert (drawRoute) se dessine seul
+  // car `destination` = routeTarget.
+  const handleTableRoute = useCallback((ad: any) => {
+    if (!ad) return
+    if (routeTarget && (routeTarget.ad_id || routeTarget.id) === (ad.ad_id || ad.id)) {
+      setRouteTarget(null)
+      setRouteInfo(null)
+      return
+    }
+    setRouteTarget(ad)
+  }, [routeTarget])
 
   // Ferme l'overlay card et nettoie l'itinéraire
   const handleCloseCard = useCallback(() => {
@@ -439,7 +491,7 @@ export function SearchView() {
                 }}
               />
               {query && (
-                <button onClick={() => { setQuery(""); setAiResponse(null); setShowSuggestions(false) }} className="text-stone-400 hover:text-stone-600 shrink-0">
+                <button onClick={() => { setQuery(""); setAiResponse(null); setAiGeo(null); setShowSuggestions(false) }} className="text-stone-400 hover:text-stone-600 shrink-0">
                   <X size={14} />
                 </button>
               )}
@@ -485,7 +537,7 @@ export function SearchView() {
 
           {/* Mode toggle: IA / Filtres */}
           <button
-            onClick={() => { setAiMode(!aiMode); setShowFilters(!aiMode ? false : showFilters); setAiResponse(null); }}
+            onClick={() => { setAiMode(!aiMode); setShowFilters(!aiMode ? false : showFilters); setAiResponse(null); setAiGeo(null); }}
             className={cn(
               "flex items-center gap-1.5 text-sm font-semibold px-3 py-2.5 rounded-full transition-colors shadow-lg pointer-events-auto shrink-0",
               aiMode ? "bg-amber-500 text-white" : "bg-white/90 backdrop-blur text-stone-700 hover:bg-white"
@@ -560,7 +612,14 @@ export function SearchView() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-amber-600 mb-1">Assistant IA</p>
                   <p className="text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">{aiResponse}</p>
-                  {/* Tableau des biens trouvés (cliquable → sélection sur la map) */}
+                  {aiGeo && results.length > 0 && (
+                    <p className="text-[10px] text-stone-400 mt-1 flex items-center gap-1">
+                      <Crosshair size={11} className="text-emerald-500" />
+                      Classés par proximité — du plus proche au plus éloigné de {aiGeo.displayName || "votre lieu"}
+                    </p>
+                  )}
+                  {/* Tableau des biens trouvés (ligne cliquable → sélection sur la map,
+                      bouton Itinéraire → tracé direct sur la map) */}
                   {results.length > 0 && (
                     <div className="mt-3 max-h-52 overflow-auto rounded-lg border border-stone-200">
                       <table className="w-full text-xs">
@@ -570,19 +629,24 @@ export function SearchView() {
                             <th className="px-2.5 py-1.5 font-semibold">Prix</th>
                             <th className="px-2.5 py-1.5 font-semibold">Quartier</th>
                             <th className="px-2.5 py-1.5 font-semibold">Proximité</th>
+                            {aiGeo && (
+                              <th className="px-2.5 py-1.5 font-semibold whitespace-nowrap">Dist.</th>
+                            )}
+                            <th className="px-2.5 py-1.5 font-semibold">Itinéraire</th>
                           </tr>
                         </thead>
                         <tbody>
                           {results.slice(0, 10).map((r: any) => {
                             const id = r.ad_id || r.id
                             const active = selectedProperty && (selectedProperty.ad_id || selectedProperty.id) === id
+                            const isRouting = routeTarget && (routeTarget.ad_id || routeTarget.id) === id
                             return (
                               <tr
                                 key={id}
                                 onClick={() => handleMarkerClick(id)}
                                 className={cn(
                                   "border-t border-stone-100 cursor-pointer transition-colors",
-                                  active ? "bg-emerald-50" : "hover:bg-stone-50"
+                                  active || isRouting ? "bg-emerald-50" : "hover:bg-stone-50"
                                 )}
                               >
                                 <td className="px-2.5 py-1.5 font-medium text-stone-800 max-w-40 truncate">{r.title}</td>
@@ -592,6 +656,32 @@ export function SearchView() {
                                   {Array.isArray(r.preferences) && r.preferences.length > 0
                                     ? r.preferences.slice(0, 3).map((p: any) => p.note || p.label || p.code).join(" · ")
                                     : "—"}
+                                </td>
+                                {aiGeo && (
+                                  <td className="px-2.5 py-1.5 whitespace-nowrap text-stone-600">
+                                    {r.distanceKm != null ? `${r.distanceKm.toFixed(1)} km` : "—"}
+                                  </td>
+                                )}
+                                <td className="px-2.5 py-1.5 whitespace-nowrap">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleTableRoute(r) }}
+                                    className={cn(
+                                      "flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold transition-colors",
+                                      isRouting
+                                        ? "bg-emerald-600 text-white"
+                                        : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                    )}
+                                    title="Tracer l'itinéraire vers ce bien sur la carte"
+                                  >
+                                    <Navigation size={11} />
+                                    {routeInfoLoading && isRouting
+                                      ? "Calcul…"
+                                      : routeInfo && isRouting
+                                      ? `${routeInfo.km.toFixed(1)} km · ${Math.round(routeInfo.min)} min`
+                                      : isRouting
+                                      ? "Tracé"
+                                      : "Itinéraire"}
+                                  </button>
                                 </td>
                               </tr>
                             )
@@ -634,7 +724,7 @@ export function SearchView() {
                     </div>
                   )}
                 </div>
-                <button onClick={() => { setAiResponse(null); setAiParsed(null) }} className="text-stone-400 hover:text-stone-600 shrink-0">
+                <button onClick={() => { setAiResponse(null); setAiParsed(null); setAiGeo(null) }} className="text-stone-400 hover:text-stone-600 shrink-0">
                   <X size={14} />
                 </button>
               </div>
