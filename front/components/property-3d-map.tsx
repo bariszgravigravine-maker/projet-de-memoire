@@ -12,6 +12,11 @@ import "maplibre-gl/dist/maplibre-gl.css"
 // Voir: https://github.com/vercel/next.js/issues/98137
 if (typeof window !== "undefined") {
   maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs")
+  // Perf : MapLibre n'utilise qu'UN seul worker par défaut (sauf Safari).
+  // Monter à ~4 workers parallélise le décodage/parsing des tuiles
+  // vectorielles => la carte s'affiche plus vite, surtout en vue 3D
+  // inclinée qui charge beaucoup de tuiles (frustum jusqu'à l'horizon).
+  maplibregl.setWorkerCount(Math.min(4, navigator.hardwareConcurrency || 2))
 }
 
 // Yaoundé (centre-ville) — vue par défaut, déjà au niveau "ville" pour que
@@ -135,7 +140,25 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
         refreshExpiredTiles: false,
         fadeDuration: 0,
         // Depuis MapLibre v5, l'antialiasing se règle via canvasContextAttributes
-        canvasContextAttributes: { antialias: true },
+        canvasContextAttributes: {
+          antialias: true,
+          // Force le GPU dédié sur les machines double-GPU (laptops)
+          powerPreference: "high-performance",
+        },
+        // Perf : cache de tuiles plus grand => moins de re-téléchargements
+        // quand l'utilisateur revient sur une zone déjà visitée ou dézoome.
+        maxTileCacheSize: 2048,
+        maxTileCacheZoomLevels: 10,
+        // Perf : le style MapTiler est fiable, inutile de le re-valider à
+        // chaque init (économise le parsing/validation du style JSON).
+        validateStyle: false,
+        // La plateforme ne couvre que le grand Yaoundé (+ Mfou) : borner la
+        // caméra empêche de charger des tuiles hors zone et concentre le
+        // cache sur la ville.
+        maxBounds: [
+          [11.2, 3.55],
+          [11.9, 4.2],
+        ],
       })
     } catch (err: any) {
       console.error("[Map] Erreur d'initialisation:", err)

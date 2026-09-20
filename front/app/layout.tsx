@@ -56,6 +56,17 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body className={`${inter.variable} font-sans antialiased`}>
+        {/* Perf carte : pré-connexion TLS vers MapTiler pendant le SSR pour
+            que les premières tuiles arrivent plus vite, et préchargement du
+            style.json utilisé par property-3d-map (garder l'URL en sync). */}
+        <link rel="preconnect" href="https://api.maptiler.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://api.maptiler.com" />
+        <link
+          rel="preload"
+          href="https://api.maptiler.com/maps/streets/style.json?key=pZbOuTTgEMlz7km8AJvW"
+          as="fetch"
+          crossOrigin="anonymous"
+        />
         <RealtimeProvider>
           <RouteGuard>
             {children}
