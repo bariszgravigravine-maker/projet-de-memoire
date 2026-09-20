@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Calculator, Loader2, TrendingUp, MapPin, Home } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { estimatePrice } from "@/lib/api"
 
 const PROPERTY_TYPES = [
@@ -79,27 +80,29 @@ export default function EstimationPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Type de bien</label>
-              <select
-                value={form.propertyType}
-                onChange={(e) => update("propertyType", e.target.value)}
-                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {PROPERTY_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+              <Select value={form.propertyType} onValueChange={(v) => update("propertyType", v)}>
+                <SelectTrigger className="w-full h-12 rounded-xl px-4 text-sm capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  {PROPERTY_TYPES.map((t) => (
+                    <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Ville</label>
-              <select
-                value={form.city}
-                onChange={(e) => update("city", e.target.value)}
-                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {CITIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+              <Select value={form.city} onValueChange={(v) => update("city", v)}>
+                <SelectTrigger className="w-full h-12 rounded-xl px-4 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  {CITIES.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

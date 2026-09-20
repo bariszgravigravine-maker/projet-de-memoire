@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Plus, Trash2, Save, Loader2, Bell, Filter } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { listCriteria, updateCriteria, clearCriteria } from "@/lib/api"
 
 const PROPERTY_TYPES = [
@@ -167,29 +168,37 @@ export default function CriteresPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Type de bien</label>
-                    <select
-                      value={c.type || ""}
-                      onChange={(e) => update(idx, "type", e.target.value || undefined)}
-                      className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    <Select
+                      value={c.type || "all"}
+                      onValueChange={(v) => update(idx, "type", v === "all" ? undefined : v)}
                     >
-                      <option value="">Tous</option>
-                      {PROPERTY_TYPES.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="w-full rounded-xl px-3 text-sm capitalize">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="all">Tous</SelectItem>
+                        {PROPERTY_TYPES.map((t) => (
+                          <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Ville</label>
-                    <select
-                      value={c.city || ""}
-                      onChange={(e) => update(idx, "city", e.target.value || undefined)}
-                      className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    <Select
+                      value={c.city || "all"}
+                      onValueChange={(v) => update(idx, "city", v === "all" ? undefined : v)}
                     >
-                      <option value="">Toutes</option>
-                      {CITIES.map((c2) => (
-                        <option key={c2} value={c2}>{c2}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="w-full rounded-xl px-3 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="all">Toutes</SelectItem>
+                        {CITIES.map((c2) => (
+                          <SelectItem key={c2} value={c2}>{c2}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

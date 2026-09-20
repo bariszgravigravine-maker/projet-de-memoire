@@ -395,7 +395,7 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
     userPosRef.current = [lon, lat]
     const map = mapRef.current
     if (map?.isStyleLoaded()) showUserMarker()
-    else map?.once("load", showUserMarker)
+    else map?.once("load", () => showUserMarker())
   }, [showUserMarker])
 
   // Expose flyTo + autoFit control to parent via onMapActions callback
@@ -424,7 +424,7 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
         userPosRef.current = [pos.coords.longitude, pos.coords.latitude]
         const map = mapRef.current
         if (map?.isStyleLoaded()) showUserMarker()
-        else map?.once("load", showUserMarker)
+        else map?.once("load", () => showUserMarker())
       },
       () => {},
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
