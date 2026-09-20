@@ -66,8 +66,8 @@ function MessagesContent() {
     } catch {}
   }, [setUnreadMessages])
 
-  const fetchConversations = useCallback(async () => {
-    setLoadingConvs(true)
+  const fetchConversations = useCallback(async (silent = false) => {
+    if (!silent) setLoadingConvs(true)
     try {
       const [convRes, unreadRes] = await Promise.all([
         listConversations(),
@@ -90,18 +90,15 @@ function MessagesContent() {
       const unreadCount = unreadRes.data?.count || 0
       setUnreadTotal(unreadCount)
       setUnreadMessages(unreadCount)
-      // Si un conversationId est dans l'URL, le sélectionner en priorité
-      if (initialConvId) {
-        setSelectedId(initialConvId)
-      } else if (mapped.length > 0 && !selectedId) {
-        setSelectedId(mapped[0].id)
-      }
+      // Si un conversationId est dans l'URL, le sélectionner en priorité ;
+      // sinon sélectionner la première conversation uniquement si aucune n'est ouverte
+      setSelectedId((prev) => prev ?? (initialConvId || mapped[0]?.id || null))
     } catch (err: any) {
       setError(err.message || "Erreur lors du chargement des conversations")
     } finally {
       setLoadingConvs(false)
     }
-  }, [selectedId, initialConvId, setUnreadMessages])
+  }, [initialConvId, setUnreadMessages])
 
   const fetchMessages = useCallback(async (convId: string) => {
     setLoadingMsgs(true)
@@ -133,6 +130,11 @@ function MessagesContent() {
     fetchConversations()
   }, [fetchConversations])
 
+  // Un conversationId dans l'URL prend toujours la priorité
+  useEffect(() => {
+    if (initialConvId) setSelectedId(initialConvId)
+  }, [initialConvId])
+
   useEffect(() => {
     if (selectedId) {
       fetchMessages(selectedId)
@@ -153,7 +155,7 @@ function MessagesContent() {
       } else {
         refreshUnread()
       }
-      fetchConversations()
+      fetchConversations(true)
     }
     socket.on("message", onMessage)
     return () => { socket.off("message", onMessage) }
@@ -176,7 +178,7 @@ function MessagesContent() {
       await apiSendMessage(selectedId, content, attachment)
       // Refresh messages to get the real message with ID
       fetchMessages(selectedId)
-      fetchConversations()
+      fetchConversations(true)
     } catch (err: any) {
       // Remove temp message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempMsg.id))
