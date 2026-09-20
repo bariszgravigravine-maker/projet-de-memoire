@@ -24,6 +24,7 @@ Après chaque modification du code, toujours déployer en production :
 
 - La base ne contient que des biens du grand Yaoundé (+ Mfou) — le reste a été supprimé (20/09/2026)
 - NE PAS remettre de `maxBounds` sur la map : ça cache le point bleu GPS et clampe les itinéraires pour les utilisateurs hors zone
+- La map sur `main` est 2D (`property-2d-map.tsx`) — la version 3D est conservée dans `property-3d-map.tsx` et sur la branche `carte-3D`
 - Si le style/clé MapTiler change dans `property-3d-map.tsx`, mettre à jour le `<link rel="preload">` correspondant dans `front/app/layout.tsx`
 
 ## Vérification

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation, LocateFixed, Crosshair, ChevronRight, Bed, Bath, GripHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getAds, agentSearch, listPreferences } from "@/lib/api"
-import { Property3DMap } from "@/components/property-3d-map"
+import { Property2DMap } from "@/components/property-2d-map"
 
 const POPULAR_CITIES = ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Garoua", "Kribi", "Buea", "Limbe", "Bertoua", "Maroua", "Ngaoundéré", "Ebolowa"]
 const PROPERTY_TYPES = ["Tous", "maison", "appartement", "studio", "chambre", "villa", "terrain", "bureau"]
@@ -133,7 +133,7 @@ export function SearchView() {
   const [selectedPrefs, setSelectedPrefs] = useState<string[]>([])
   // Critères interprétés par l'IA (affichés en puces sous la réponse)
   const [aiParsed, setAiParsed] = useState<any | null>(null)
-  // Infos d'itinéraire remontées par Property3DMap (km, durée)
+  // Infos d'itinéraire remontées par Property2DMap (km, durée)
   const [routeInfo, setRouteInfo] = useState<{ km: number; min: number } | null>(null)
   const [routeInfoLoading, setRouteInfoLoading] = useState(false)
   // Déplacement de la card overlay (drag libre depuis le handle/poignée)
@@ -444,10 +444,10 @@ export function SearchView() {
 
   return (
     <div className="fixed inset-0 w-full h-full overflow-hidden">
-      {/* Full-screen 3D Map */}
+      {/* Full-screen 2D Map (version 3D : property-3d-map.tsx, branche carte-3D) */}
       {/* Dès qu'un bien est sélectionné (card ouverte) ou en itinéraire, */}
       {/* seul son marqueur reste : la carte est désencombrée. */}
-      <Property3DMap
+      <Property2DMap
         properties={mapProperties}
         onMarkerClick={handleMarkerClick}
         destination={routeTarget}
