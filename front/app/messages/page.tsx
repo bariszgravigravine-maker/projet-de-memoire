@@ -100,8 +100,8 @@ function MessagesContent() {
     }
   }, [initialConvId, setUnreadMessages])
 
-  const fetchMessages = useCallback(async (convId: string) => {
-    setLoadingMsgs(true)
+  const fetchMessages = useCallback(async (convId: string, silent = false) => {
+    if (!silent) setLoadingMsgs(true)
     try {
       const res = await getMessages(convId)
       const data = res.data || res || []
@@ -151,7 +151,7 @@ function MessagesContent() {
     if (!socket) return
     const onMessage = (payload: { conversationId?: string }) => {
       if (payload?.conversationId === selectedId) {
-        fetchMessages(selectedId)
+        fetchMessages(selectedId, true)
       } else {
         refreshUnread()
       }
@@ -175,9 +175,24 @@ function MessagesContent() {
     setMessages((prev) => [...prev, tempMsg])
     try {
       const attachment = imageData ? { url: imageData, type: "image", name: "photo.jpg" } : undefined
-      await apiSendMessage(selectedId, content, attachment)
-      // Refresh messages to get the real message with ID
-      fetchMessages(selectedId)
+      const res = await apiSendMessage(selectedId, content, attachment)
+      // Remplace le message optimiste par le vrai message renvoyé par l'API — aucun rechargement
+      const m = res?.data || res
+      if (m?.id) {
+        setMessages((prev) => prev.map((msg) =>
+          msg.id === tempMsg.id
+            ? {
+                id: m.id,
+                role: "me" as const,
+                content: m.content,
+                time: m.sent_at ? formatTime(m.sent_at) : tempMsg.time,
+                attachment_url: m.attachment_url,
+                attachment_type: m.attachment_type,
+                attachment_name: m.attachment_name,
+              }
+            : msg
+        ))
+      }
       fetchConversations(true)
     } catch (err: any) {
       // Remove temp message on error
