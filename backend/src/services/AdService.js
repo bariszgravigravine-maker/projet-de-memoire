@@ -7,6 +7,7 @@ import NotificationService from './NotificationService.js';
 import SearchCriteriaModel from '../models/SearchCriteriaModel.js';
 import CloudinaryService from './CloudinaryService.js';
 import PreferenceModel from '../models/PreferenceModel.js';
+import ProximityService from './ProximityService.js';
 import { resolveDistrict, resolveCity } from '../utils/placeResolver.js';
 
 /**
@@ -74,10 +75,21 @@ export const AdService = {
       }
     }
 
-    // Préférences de proximité (facultatif) : un bien sans préférence reste
-    // un "bien basique", sinon il est considéré comme "référencé".
-    if (Array.isArray(preferences) && preferences.length > 0) {
-      await PreferenceModel.replaceForProperty(property.id, preferences);
+    // Préférences de proximité : si le client n'en fournit pas, le système
+    // les détecte automatiquement à partir des coordonnées du bien
+    // (Overpass/OpenStreetMap — écoles, marchés, hôpitaux… dans un rayon
+    // d'1 km, avec la distance réelle). Une panne d'Overpass ne doit pas
+    // bloquer la publication : le bien reste simplement "basique".
+    let prefsToSave = Array.isArray(preferences) && preferences.length > 0 ? preferences : null;
+    if (!prefsToSave) {
+      try {
+        prefsToSave = await ProximityService.detectNearby(lat, lon);
+      } catch (e) {
+        console.error('[AdService] Détection proximité KO:', e.message);
+      }
+    }
+    if (prefsToSave && prefsToSave.length > 0) {
+      await PreferenceModel.replaceForProperty(property.id, prefsToSave);
     }
 
     const ad = await AdModel.create({

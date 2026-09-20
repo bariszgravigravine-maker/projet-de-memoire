@@ -126,6 +126,12 @@ export async function listPreferences() {
   return apiFetch("/preferences")
 }
 
+// Détection automatique : géocodage inversé (vrai quartier/ville) +
+// équipements proches détectés (Overpass) pour un point posé sur la map
+export async function detectProximity(lat: number, lon: number) {
+  return apiFetch(`/proximite?lat=${lat}&lon=${lon}`)
+}
+
 // === FAVORIS ===
 export async function listFavorites() {
   return apiFetch("/favoris")

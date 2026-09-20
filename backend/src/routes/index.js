@@ -8,6 +8,7 @@ import criteriaRoutes from './criteriaRoutes.js';
 import agentRoutes from './agentRoutes.js';
 import adminRoutes from './adminRoutes.js';
 import preferenceRoutes from './preferenceRoutes.js';
+import proximityRoutes from './proximityRoutes.js';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/criteres', criteriaRoutes);
 router.use('/agent', agentRoutes);
 router.use('/admin', adminRoutes);
 router.use('/preferences', preferenceRoutes);
+router.use('/proximite', proximityRoutes);
 
 export default router;

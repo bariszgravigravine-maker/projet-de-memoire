@@ -1,33 +1,17 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Upload, X, Plus, Home, Loader2, Sparkles } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { ArrowLeft, X, Plus, Home, Loader2, Sparkles, MapPin } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createAd, getToken, generateDescription, listPreferences } from "@/lib/api"
+import { createAd, getToken, generateDescription, detectProximity } from "@/lib/api"
+import { LocationPickerMap } from "@/components/location-picker-map"
 
-interface PreferenceOption {
+interface DetectedPref {
   code: string
-  label: string
-  category?: string
+  note: string | null
+  distance_m: number
 }
-
-// Repli si l'API des préférences est indisponible
-const FALLBACK_PREFERENCES: PreferenceOption[] = [
-  { code: "ecole", label: "Proche école", category: "education" },
-  { code: "lycee", label: "Proche lycée", category: "education" },
-  { code: "universite", label: "Proche université", category: "education" },
-  { code: "hopital", label: "Proche hôpital", category: "sante" },
-  { code: "pharmacie", label: "Proche pharmacie", category: "sante" },
-  { code: "centre_ville", label: "Proche centre-ville", category: "commodites" },
-  { code: "marche", label: "Proche marché", category: "commodites" },
-  { code: "transport", label: "Proche transport", category: "commodites" },
-  { code: "banque", label: "Proche banque", category: "commodites" },
-  { code: "commissariat", label: "Proche commissariat", category: "securite" },
-  { code: "mosquee", label: "Proche mosquée", category: "spiritualite" },
-  { code: "eglise", label: "Proche église", category: "spiritualite" },
-]
 
 const PROPERTY_TYPES = [
   "maison", "appartement", "studio", "villa", "terrain",
@@ -59,38 +43,42 @@ export default function PublierAnnoncePage() {
     city: "Yaoundé",
   })
 
-  const [prefOptions, setPrefOptions] = useState<PreferenceOption[]>(FALLBACK_PREFERENCES)
-  // Préférences cochées + note libre par préférence (ex: "à 200m du marché")
-  const [prefs, setPrefs] = useState<Record<string, string>>({})
+  // Coordonnées du pin posé sur la mini-map + proximités détectées
+  // automatiquement par le backend (Overpass) à partir de ce point.
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null)
+  const [detectedPrefs, setDetectedPrefs] = useState<DetectedPref[]>([])
+  const [locating, setLocating] = useState(false)
 
   const token = typeof window !== "undefined" ? getToken() : null
 
-  useEffect(() => {
-    let cancelled = false
-    listPreferences()
-      .then((json) => {
-        const list = json?.data?.preferences || json?.preferences
-        if (!cancelled && Array.isArray(list) && list.length > 0) setPrefOptions(list)
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [])
-
-  const togglePref = (code: string) => {
-    setPrefs((prev) => {
-      if (code in prev) {
-        const next = { ...prev }
-        delete next[code]
-        return next
-      }
-      return { ...prev, [code]: "" }
-    })
-  }
-
-  const setPrefNote = (code: string, note: string) =>
-    setPrefs((prev) => ({ ...prev, [code]: note }))
-
   const update = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }))
+
+  // Clic sur la mini-map : récupère le vrai nom du quartier/ville/adresse
+  // (géocodage inversé) et les équipements proches détectés automatiquement.
+  const handleMapPick = async (lat: number, lon: number) => {
+    setCoords({ lat, lon })
+    setLocating(true)
+    try {
+      const json = await detectProximity(lat, lon)
+      const data = json?.data || json
+      setDetectedPrefs(Array.isArray(data.preferences) ? data.preferences : [])
+      const loc = data.location
+      if (loc) {
+        setForm((prev) => ({
+          ...prev,
+          // Le quartier détecté remplace la saisie : c'est le nom officiel
+          // OSM du lieu, garantissant des données de recherche fiables.
+          district: loc.district || prev.district,
+          address: prev.address || loc.address || "",
+          city: loc.city && CITIES.includes(loc.city) ? loc.city : prev.city,
+        }))
+      }
+    } catch {
+      setDetectedPrefs([])
+    } finally {
+      setLocating(false)
+    }
+  }
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -156,13 +144,11 @@ export default function PublierAnnoncePage() {
         address: form.address,
         district: form.district,
         city: form.city,
+        // Coordonnées du pin posé sur la mini-map : le backend détecte
+        // automatiquement les équipements de proximité à partir d'elles.
+        latitude: coords?.lat,
+        longitude: coords?.lon,
         photos,
-        // Préférences de proximité (facultatif) — un bien sans préférence
-        // reste un "bien basique"
-        preferences: Object.entries(prefs).map(([code, note]) => ({
-          code,
-          note: note.trim() || undefined,
-        })),
       })
       router.push("/dashboard")
     } catch (err: any) {
@@ -249,7 +235,9 @@ export default function PublierAnnoncePage() {
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Superficie (m²)</label>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Superficie (m²) <span className="text-muted-foreground font-normal">(optionnel)</span>
+              </label>
               <input
                 type="number"
                 value={form.area}
@@ -280,27 +268,7 @@ export default function PublierAnnoncePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Adresse</label>
-              <input
-                value={form.address}
-                onChange={(e) => update("address", e.target.value)}
-                placeholder="Rue, quartier..."
-                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Quartier</label>
-              <input
-                value={form.district}
-                onChange={(e) => update("district", e.target.value)}
-                placeholder="Bastos"
-                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-          </div>
-
+          {/* Localisation : ville → mini-map (pin) → quartier/adresse auto-remplis */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Ville</label>
             <Select value={form.city} onValueChange={(v) => update("city", v)}>
@@ -315,58 +283,79 @@ export default function PublierAnnoncePage() {
             </Select>
           </div>
 
-          {/* Préférences de proximité */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
-              Proximité <span className="text-muted-foreground font-normal">(optionnel)</span>
+              Localisation sur la carte
             </label>
             <p className="text-xs text-muted-foreground mb-2">
-              Sélectionnez ce qui se trouve à proximité du bien. Ces informations alimentent la
-              recherche intelligente (« je cherche un bien proche d'un lycée »).
+              Cliquez sur la carte pour poser un pin à l&apos;emplacement exact du bien
+              (ou utilisez « Ma position »). Le quartier, la ville et les équipements
+              à proximité sont détectés automatiquement.
             </p>
-            <div className="flex flex-wrap gap-2">
-              {prefOptions.map((p) => {
-                const active = p.code in prefs
-                return (
-                  <button
-                    key={p.code}
-                    type="button"
-                    onClick={() => togglePref(p.code)}
-                    className={cn(
-                      "px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
-                      active
-                        ? "bg-emerald-600 text-white border-emerald-600"
-                        : "bg-transparent text-foreground border-border hover:bg-muted"
-                    )}
-                  >
-                    {p.label}
-                  </button>
-                )
-              })}
+            <LocationPickerMap city={form.city} onPick={handleMapPick} />
+            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              {locating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Détection du quartier et des proximités…
+                </>
+              ) : coords ? (
+                <>
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                  Position : {coords.lat.toFixed(5)}, {coords.lon.toFixed(5)}
+                </>
+              ) : (
+                <>
+                  <MapPin className="w-3.5 h-3.5" />
+                  Aucun pin posé — la position sera approximative
+                </>
+              )}
             </div>
-
-            {/* Notes libres pour les préférences sélectionnées */}
-            {Object.keys(prefs).length > 0 && (
-              <div className="mt-3 space-y-2">
-                {Object.keys(prefs).map((code) => {
-                  const opt = prefOptions.find((p) => p.code === code)
-                  return (
-                    <div key={code} className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground w-32 shrink-0 truncate">
-                        {opt?.label || code}
-                      </span>
-                      <input
-                        value={prefs[code]}
-                        onChange={(e) => setPrefNote(code, e.target.value)}
-                        placeholder="Précision (ex: à 200m du marché)"
-                        className="flex-1 rounded-lg border border-input bg-transparent px-3 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      />
-                    </div>
-                  )
-                })}
-              </div>
-            )}
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Quartier</label>
+              <input
+                value={form.district}
+                onChange={(e) => update("district", e.target.value)}
+                placeholder="Détecté via la carte"
+                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Adresse <span className="text-muted-foreground font-normal">(optionnel)</span>
+              </label>
+              <input
+                value={form.address}
+                onChange={(e) => update("address", e.target.value)}
+                placeholder="Rue, repère..."
+                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+
+          {/* Proximités détectées automatiquement (lecture seule) */}
+          {detectedPrefs.length > 0 && (
+            <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200">
+              <p className="text-xs font-semibold text-emerald-800 mb-2">
+                À proximité — détecté automatiquement
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {detectedPrefs.map((p) => (
+                  <span
+                    key={p.code}
+                    className="px-2.5 py-1 rounded-full bg-white border border-emerald-200 text-xs text-emerald-800"
+                    title={p.note || undefined}
+                  >
+                    {p.note || p.code}
+                    {p.distance_m != null && ` · ${p.distance_m >= 1000 ? `${(p.distance_m / 1000).toFixed(1)} km` : `${p.distance_m} m`}`}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Photos */}
           <div>

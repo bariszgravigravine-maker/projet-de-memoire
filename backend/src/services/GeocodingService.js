@@ -130,6 +130,45 @@ export const GeocodingService = {
   },
 
   /**
+   * Géocodage inversé : coordonnées → adresse/quartier/ville réels (Nominatim).
+   * Utilisé par la mini-map de publication pour remplir automatiquement le
+   * quartier et la ville à partir du point posé sur la carte.
+   */
+  async reverse(lat, lon) {
+    if (lat == null || lon == null) return null;
+    try {
+      const res = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+        params: {
+          lat,
+          lon,
+          format: 'jsonv2',
+          addressdetails: 1,
+          zoom: 18,
+          'accept-language': 'fr',
+        },
+        headers: {
+          'User-Agent': 'ImmoGeoApp/1.0 (fredy)',
+        },
+        timeout: 10000,
+      });
+      const a = res.data?.address || {};
+      return {
+        displayName: res.data?.display_name || null,
+        // Quartier : OSM expose suburb/neighbourhood/quarter selon le niveau
+        district:
+          a.suburb || a.neighbourhood || a.quarter || a.city_district ||
+          a.village || a.town || null,
+        city: a.city || a.town || a.municipality || a.village || null,
+        road: a.road || null,
+        address: [a.house_number, a.road].filter(Boolean).join(' ') || a.road || null,
+      };
+    } catch (err) {
+      console.error('[Geocoding] Erreur reverse:', err.message);
+      return null;
+    }
+  },
+
+  /**
    * Géocode un lieu repère. Ordre de recherche :
    * 1. Table des repères connus (BEAC, stades, hôpitaux…) — instantané
    * 2. Correspondance partielle dans la table (le texte contient un repère)
