@@ -35,18 +35,41 @@ io.use((socket, next) => {
   }
 });
 
+// Présence en ligne : userId -> ensemble de sockets ouvertes (multi-onglets/appareils)
+const onlineUsers = new Map();
+
 io.on('connection', (socket) => {
   console.log(`[WS] Utilisateur connecté: ${socket.userId}`);
   // Rejoindre sa room personnelle pour les notifications/messages temps réel
   socket.join(`user:${socket.userId}`);
 
+  // Enregistrer la socket et annoncer la présence si c'est la première
+  const sockets = onlineUsers.get(socket.userId) || new Set();
+  const wasOffline = sockets.size === 0;
+  sockets.add(socket.id);
+  onlineUsers.set(socket.userId, sockets);
+  if (wasOffline) {
+    io.emit('presence', { userId: socket.userId, online: true });
+  }
+  // Envoie la liste courante des utilisateurs en ligne au nouveau connecté
+  socket.emit('online_users', [...onlineUsers.keys()]);
+
   socket.on('disconnect', () => {
     console.log(`[WS] Utilisateur déconnecté: ${socket.userId}`);
+    const userSockets = onlineUsers.get(socket.userId);
+    if (userSockets) {
+      userSockets.delete(socket.id);
+      if (userSockets.size === 0) {
+        onlineUsers.delete(socket.userId);
+        io.emit('presence', { userId: socket.userId, online: false });
+      }
+    }
   });
 });
 
 // Expose io globalement pour les services (NotificationService, ChatService)
 global.io = io;
+global.onlineUsers = onlineUsers;
 
 // --- Démarrage ---
 async function start() {

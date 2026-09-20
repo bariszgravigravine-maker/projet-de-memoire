@@ -13,6 +13,7 @@ interface RealtimeContextValue {
   incrementNotifs: () => void
   connected: boolean
   socket: Socket | null
+  onlineUsers: string[]
 }
 
 const RealtimeContext = createContext<RealtimeContextValue>({
@@ -24,6 +25,7 @@ const RealtimeContext = createContext<RealtimeContextValue>({
   incrementNotifs: () => {},
   connected: false,
   socket: null,
+  onlineUsers: [],
 })
 
 export function useRealtime() {
@@ -35,6 +37,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const [unreadNotifs, setUnreadNotifs] = useState(0)
   const [connected, setConnected] = useState(false)
   const [socket, setSocket] = useState<Socket | null>(null)
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([])
 
   useEffect(() => {
     // Get token from localStorage
@@ -81,6 +84,16 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       setUnreadMessages((prev) => prev + 1)
     })
 
+    // Présence : liste initiale puis mises à jour en ligne/hors ligne
+    s.on("online_users", (ids: string[]) => {
+      setOnlineUsers(ids)
+    })
+    s.on("presence", ({ userId, online }: { userId: string; online: boolean }) => {
+      setOnlineUsers((prev) =>
+        online ? (prev.includes(userId) ? prev : [...prev, userId]) : prev.filter((id) => id !== userId)
+      )
+    })
+
     return () => {
       s.disconnect()
     }
@@ -105,6 +118,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         incrementNotifs,
         connected,
         socket,
+        onlineUsers,
       }}
     >
       {children}

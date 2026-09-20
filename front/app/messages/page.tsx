@@ -55,7 +55,8 @@ function MessagesContent() {
   const [error, setError] = useState<string | null>(null)
   const [showList, setShowList] = useState(true)
   const [unreadTotal, setUnreadTotal] = useState(0)
-  const { socket, setUnreadMessages } = useRealtime()
+  const { socket, setUnreadMessages, onlineUsers } = useRealtime()
+  const isOnline = useCallback((userId?: string) => !!userId && onlineUsers.includes(userId), [onlineUsers])
 
   const refreshUnread = useCallback(async () => {
     try {
@@ -83,7 +84,6 @@ function MessagesContent() {
         lastMessage: c.last_message || "",
         time: c.last_message_at ? formatTime(c.last_message_at) : "",
         unread: c.unread_count || 0,
-        online: false,
         targetUserId: c.other_user_id || c.target_user_id,
       }))
       setConversations(mapped)
@@ -272,7 +272,7 @@ function MessagesContent() {
                     {getInitials(conv.name)}
                   </div>
                 )}
-                {conv.online && (
+                {isOnline(conv.targetUserId) && (
                   <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
                 )}
               </div>
@@ -311,14 +311,14 @@ function MessagesContent() {
                     {getInitials(selected.name)}
                   </div>
                 )}
-                {selected.online && (
+                {isOnline(selected.targetUserId) && (
                   <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full" />
                 )}
               </div>
 
               <div className="flex-1 min-w-0">
                 <h2 className="font-semibold text-foreground truncate">{selected.name}</h2>
-                <p className="text-xs text-stone-500">{selected.online ? "En ligne" : "Hors ligne"}</p>
+                <p className="text-xs text-stone-500">{isOnline(selected.targetUserId) ? "En ligne" : "Hors ligne"}</p>
               </div>
 
               <div className="flex items-center gap-1">
