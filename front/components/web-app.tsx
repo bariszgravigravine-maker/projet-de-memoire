@@ -6,7 +6,7 @@ import Image from "next/image"
 import {
   MapPin, Bell, Search, Heart, Star, BedDouble, Bath,
   Flame, Wifi, Dices, Phone, MessageSquare, Trees, SlidersHorizontal,
-  ChevronLeft, User, Calendar, Home, Grid2X2
+  ChevronLeft, User, Home, Grid2X2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { NestFindLogo } from "@/components/nestfind-logo"
@@ -33,12 +33,11 @@ const AMENITIES = [
   { icon: Dices, label: "Board Games" },
 ]
 
-type NavItem = "home" | "liked" | "calendar" | "search" | "profile"
+type NavItem = "home" | "liked" | "search" | "profile"
 
 const NAV_ROUTES: Record<NavItem, string> = {
   home: "/dashboard",
   liked: "/dashboard/saved",
-  calendar: "/dashboard/tours",
   search: "/dashboard/search",
   profile: "/dashboard/profile",
 }
@@ -360,7 +359,6 @@ export function WebApp({ initialNav = "home" }: { initialNav?: NavItem }) {
           {([
             { id: "home" as NavItem, icon: Home, label: "Home" },
             { id: "liked" as NavItem, icon: Heart, label: "Saved" },
-            { id: "calendar" as NavItem, icon: Calendar, label: "Tours" },
             { id: "search" as NavItem, icon: Search, label: "Search" },
             { id: "profile" as NavItem, icon: User, label: "Profile" },
           ]).map(({ id, icon: Icon, label }) => (
@@ -384,7 +382,6 @@ export function WebApp({ initialNav = "home" }: { initialNav?: NavItem }) {
         {([
           { id: "home" as NavItem, icon: Home },
           { id: "liked" as NavItem, icon: Heart },
-          { id: "calendar" as NavItem, icon: Calendar },
           { id: "search" as NavItem, icon: Search },
           { id: "profile" as NavItem, icon: User },
         ]).map(({ id, icon: Icon }) => (

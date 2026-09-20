@@ -5,19 +5,18 @@ import { usePathname } from "next/navigation"
 import Image from "next/image"
 import {
   MapPin, Bell, Search, Heart, User, Home,
-  Grid2X2, MessageSquare, Shield, Plus, Filter, TrendingUp, Calendar
+  Grid2X2, MessageSquare, Shield, Plus, Filter, TrendingUp
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { NestFindLogo } from "@/components/nestfind-logo"
 import { countUnreadMessages, listNotifications } from "@/lib/api"
 import { useRealtime } from "@/components/realtime-provider"
 
-type NavItem = "home" | "liked" | "tours" | "search" | "messages" | "profile"
+type NavItem = "home" | "liked" | "search" | "messages" | "profile"
 
 const NAV_ROUTES: Record<NavItem, string> = {
   home: "/dashboard",
   liked: "/dashboard/saved",
-  tours: "/dashboard/tours",
   search: "/dashboard/search",
   messages: "/messages",
   profile: "/dashboard/profile",
@@ -26,7 +25,6 @@ const NAV_ROUTES: Record<NavItem, string> = {
 const NAV_ITEMS: { id: NavItem; icon: typeof Home; label: string }[] = [
   { id: "home", icon: Home, label: "Home" },
   { id: "liked", icon: Heart, label: "Saved" },
-  { id: "tours", icon: Calendar, label: "Tours" },
   { id: "search", icon: Search, label: "Search" },
   { id: "messages", icon: MessageSquare, label: "Messages" },
   { id: "profile", icon: User, label: "Profile" },
@@ -35,7 +33,6 @@ const NAV_ITEMS: { id: NavItem; icon: typeof Home; label: string }[] = [
 const PATH_TO_NAV: Record<string, NavItem> = {
   "/dashboard": "home",
   "/dashboard/saved": "liked",
-  "/dashboard/tours": "tours",
   "/dashboard/search": "search",
   "/messages": "messages",
   "/dashboard/profile": "profile",
