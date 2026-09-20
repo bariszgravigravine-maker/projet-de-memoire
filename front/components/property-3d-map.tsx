@@ -334,9 +334,12 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
   }, [])
 
   // ── Ma position : point bleu pulsant sur la carte ──
-  const showUserMarker = useCallback(() => {
+  // posOverride : affiche le repère à une position donnée sans modifier
+  // userPosRef (ex: origine d'itinéraire = centre de la carte quand la
+  // géolocalisation est refusée ou indisponible).
+  const showUserMarker = useCallback((posOverride?: [number, number]) => {
     const map = mapRef.current
-    const pos = userPosRef.current
+    const pos = posOverride ?? userPosRef.current
     if (!map || !pos) return
     if (!userMarkerRef.current) {
       // Injecte l'animation CSS une seule fois dans le <head>
@@ -448,11 +451,29 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
     const dLat = Number(destination?.latitude)
     if (!destination || isNaN(dLng) || isNaN(dLat)) return
 
-    // Origine : ma position réelle si dispo, sinon le centre actuel de la carte
+    // Origine : position GPS si connue. Sinon on retente rapidement la
+    // géoloc (elle a pu échouer au montage : permission pas encore donnée,
+    // délai dépassé...), puis repli sur le centre actuel de la carte.
+    if (!userPosRef.current && typeof navigator !== "undefined" && navigator.geolocation) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, {
+            enableHighAccuracy: false,
+            timeout: 4000,
+            maximumAge: 60000,
+          })
+        )
+        userPosRef.current = [pos.coords.longitude, pos.coords.latitude]
+      } catch {}
+    }
     const origin: [number, number] = userPosRef.current ?? [
       map.getCenter().lng,
       map.getCenter().lat,
     ]
+    // Le point bleu s'affiche dans tous les cas à l'origine réellement
+    // utilisée (GPS ou centre de la carte) : sans lui, quand la géoloc est
+    // refusée/indisponible, l'utilisateur ne voit pas d'où part le tracé.
+    showUserMarker(origin)
     const dest: [number, number] = [dLng, dLat]
 
     setRouteLoading(true)
