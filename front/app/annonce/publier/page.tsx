@@ -203,7 +203,16 @@ export default function PublierAnnoncePage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6">
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Entrée dans un champ texte ne doit PAS soumettre le formulaire :
+            sinon taper un quartier + Entrée publiait l'annonce par accident
+            et redirigeait vers le dashboard. */}
+        <form
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault()
+          }}
+          className="space-y-5"
+        >
           {error && (
             <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm">
               {error}
