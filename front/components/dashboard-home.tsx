@@ -8,7 +8,7 @@ import {
   Sparkles, ChevronLeft, MessageSquare, Eye, Star, Calendar
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getAds, getRecommendations, addFavorite, removeFavorite, listFavorites, openConversation, getToken } from "@/lib/api"
+import { getAds, getRecommendations, addFavorite, removeFavorite, listFavorites, openConversation, getToken, getProfile } from "@/lib/api"
 import { SkeletonGrid } from "@/components/skeleton"
 import confetti from "canvas-confetti"
 
@@ -42,6 +42,9 @@ export function DashboardHome() {
   const [likedAds, setLikedAds] = useState<Set<string>>(new Set())
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
+  // Préférences choisies à l'onboarding (types, villes/zones, commodités)
+  const [userPrefs, setUserPrefs] = useState<{ types: string[]; zones: string[]; amenities: string[] } | null>(null)
+
   const fetchAds = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -72,6 +75,20 @@ export function DashboardHome() {
     fetchAds()
     fetchRecommendations()
   }, [fetchAds, fetchRecommendations])
+
+  // Charge les préférences sauvegardées à l'onboarding pour les afficher
+  useEffect(() => {
+    getProfile()
+      .then((json) => {
+        const u = json.data || json
+        setUserPrefs({
+          types: u.preferred_types || [],
+          zones: u.preferred_zones || [],
+          amenities: u.preferred_amenities || [],
+        })
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     async function loadFavorites() {
@@ -189,6 +206,55 @@ export function DashboardHome() {
           </button>
         ))}
       </div>
+
+      {/* Mes préférences (choisies à l'onboarding) — types et zones cliquables */}
+      {userPrefs && (userPrefs.types.length + userPrefs.zones.length + userPrefs.amenities.length) > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap anim-fade-up" style={{ animationDelay: "160ms" }}>
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide shrink-0">
+            Mes préférences
+          </span>
+          {userPrefs.types.map((t) => (
+            <button
+              key={`t-${t}`}
+              onClick={() => (TAGS.includes(t) ? setActiveTag(t) : setSearchQuery(t))}
+              title={`Filtrer : ${t}`}
+              className={cn(
+                "shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium border transition-colors",
+                activeTag === t
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-muted text-foreground border-transparent hover:border-border"
+              )}
+            >
+              {t}
+            </button>
+          ))}
+          {userPrefs.zones.map((z) => (
+            <button
+              key={`z-${z}`}
+              onClick={() => setSearchQuery(z)}
+              title={`Rechercher à ${z}`}
+              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-muted text-foreground border border-transparent hover:border-border transition-colors"
+            >
+              <MapPin size={9} />
+              {z}
+            </button>
+          ))}
+          {userPrefs.amenities.map((a) => (
+            <span
+              key={`a-${a}`}
+              className="shrink-0 px-2.5 py-1 rounded-full text-[10px] text-muted-foreground bg-muted/50 border border-transparent"
+            >
+              {a}
+            </span>
+          ))}
+          <button
+            onClick={() => router.push("/onboarding")}
+            className="shrink-0 text-[10px] font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors ml-1"
+          >
+            Modifier
+          </button>
+        </div>
+      )}
 
       {/* Main content: grid + detail panel */}
       <div className="flex gap-6 flex-1">
