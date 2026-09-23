@@ -480,6 +480,20 @@ function MessagesContent() {
               )}
 
               {!loadingMsgs && messages.map((msg) => (
+                // Trace d'appel (audio/vidéo) — ligne centrée style WhatsApp
+                msg.attachment_type === "call" ? (
+                  <div key={msg.id} className="flex justify-center">
+                    <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-stone-200/70 text-[11px] text-stone-600">
+                      {msg.content?.includes("vidéo") ? (
+                        <Video size={11} className="shrink-0" />
+                      ) : (
+                        <Phone size={11} className="shrink-0" />
+                      )}
+                      <span>{msg.content}</span>
+                      <span className="text-stone-400">· {msg.time}</span>
+                    </span>
+                  </div>
+                ) : (
                 <div
                   key={msg.id}
                   className={cn("flex gap-3 anim-fade-up", msg.role === "me" ? "flex-row-reverse" : "flex-row")}
@@ -526,6 +540,7 @@ function MessagesContent() {
                     </div>
                   </div>
                 </div>
+                )
               ))}
             </div>
 

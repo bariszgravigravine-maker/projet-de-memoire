@@ -6,6 +6,48 @@ import { config } from '../config/index.js';
 
 const callRoom = (conversationId) => `conv-${conversationId}`;
 
+// Suivi en mémoire des appels en cours — permet d'écrire la trace d'appel
+// dans la conversation à la fin (style WhatsApp : durée, manqué, refusé).
+const activeCalls = new Map(); // conversationId -> { video, callerId, startedAt, joinedAt }
+
+function formatCallDuration(ms) {
+  const s = Math.max(1, Math.round(ms / 1000));
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return s % 60 ? `${m} min ${s % 60} s` : `${m} min`;
+  return `${Math.floor(m / 60)} h ${m % 60} min`;
+}
+
+/** Écrit la trace d'appel comme message dans la conversation + push temps réel. */
+async function writeCallTrace(conv, call, reason, endedBy) {
+  const kind = call?.video ? 'vidéo' : 'audio';
+  let label;
+  if (reason === 'declined') label = `Appel ${kind} refusé`;
+  else if (call?.joinedAt) label = `Appel ${kind} · ${formatCallDuration(Date.now() - call.joinedAt)}`;
+  else label = `Appel ${kind} sans réponse`;
+
+  const senderId = call?.callerId || endedBy;
+  const message = await MessageModel.create({
+    conversationId: conv.id,
+    senderId,
+    content: label,
+    attachmentType: 'call',
+    attachmentName: label,
+  });
+  await ConversationModel.touchLastMessage(conv.id);
+  if (global.io) {
+    const payload = {
+      conversationId: conv.id,
+      senderId,
+      content: label,
+      attachment: { type: 'call', name: label },
+      sentAt: message.sent_at,
+    };
+    global.io.to(`user:${conv.user_a_id}`).emit('message', payload);
+    global.io.to(`user:${conv.user_b_id}`).emit('message', payload);
+  }
+}
+
 async function assertParticipant(myId, conversationId) {
   const conv = await ConversationModel.findById(conversationId);
   if (!conv) {
@@ -159,6 +201,7 @@ export const ChatService = {
     const caller = await UserModel.findById(myId);
     const recipientId = otherParticipant(conv, myId);
     const token = await buildCallToken(myId, conversationId);
+    activeCalls.set(conversationId, { video: !!video, callerId: myId, startedAt: Date.now(), joinedAt: null });
     const payload = {
       conversationId,
       room: callRoom(conversationId),
@@ -187,19 +230,27 @@ export const ChatService = {
     const conv = await assertParticipant(myId, conversationId);
     const token = await buildCallToken(myId, conversationId);
     const recipientId = otherParticipant(conv, myId);
+    const call = activeCalls.get(conversationId);
+    if (call && !call.joinedAt) call.joinedAt = Date.now();
     if (global.io) {
       global.io.to(`user:${recipientId}`).emit('call:accepted', { conversationId });
     }
     return { token, url: config.livekit.url, room: callRoom(conversationId) };
   },
 
-  /** Refus / raccrochage / annulation : notifie l'autre participant. */
+  /** Refus / raccrochage / annulation : notifie l'autre participant + trace. */
   async endCall(myId, conversationId, reason = 'ended') {
     const conv = await assertParticipant(myId, conversationId);
     const recipientId = otherParticipant(conv, myId);
+    const call = activeCalls.get(conversationId);
+    activeCalls.delete(conversationId);
     if (global.io) {
       global.io.to(`user:${recipientId}`).emit('call:ended', { conversationId, reason });
     }
+    // Trace d'appel dans la conversation (WhatsApp-style) — jamais bloquante
+    writeCallTrace(conv, call, reason, myId).catch((e) =>
+      console.error('[Chat] Trace appel KO:', e.message)
+    );
     return { ok: true };
   },
 };
