@@ -448,8 +448,18 @@ export function DashboardHome() {
                             router.push(`/auth?redirect=/dashboard`)
                             return
                           }
+                          // On ne peut pas discuter avec soi-même : si le bien
+                          // appartient au compte connecté, on le signale au lieu
+                          // d'atterrir sur une messagerie vide.
+                          const me = (() => {
+                            try { return JSON.parse(localStorage.getItem("immo_user") || "null") } catch { return null }
+                          })()
                           if (!selected.owner_id) {
                             router.push(`/annonce/${selected.ad_id || selected.id}`)
+                            return
+                          }
+                          if (me?.id && selected.owner_id === me.id) {
+                            alert("Cette annonce vous appartient — vous ne pouvez pas vous envoyer de message.")
                             return
                           }
                           try {
@@ -457,8 +467,10 @@ export function DashboardHome() {
                             const conv = res.data || res
                             const convId = conv.id || conv.conversation_id
                             router.push(convId ? `/messages?conversationId=${convId}` : "/messages")
-                          } catch {
-                            router.push("/messages")
+                          } catch (err: any) {
+                            // Ne plus tomber silencieusement sur une page vide :
+                            // l'utilisateur voit pourquoi (ex: token expiré).
+                            alert(err?.message || "Impossible d'ouvrir la conversation")
                           }
                         }}
                         className="w-8 h-8 flex items-center justify-center border border-border rounded-full hover:bg-muted transition-colors"
