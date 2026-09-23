@@ -25,7 +25,7 @@ export const UserModel = {
 
   async findById(id) {
     return queryOne(
-      'SELECT id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, created_at FROM users WHERE id = $1',
+      'SELECT id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, preferred_amenities, profile_photo_url, bio, created_at FROM users WHERE id = $1',
       [id]
     );
   },
@@ -39,21 +39,21 @@ export const UserModel = {
     return bcrypt.compare(plain, hash);
   },
 
-  async updateProfile(id, { firstName, lastName, phone }) {
+  async updateProfile(id, { firstName, lastName, phone, profilePhotoUrl }) {
     return queryOne(
-      `UPDATE users SET first_name = COALESCE($2, first_name), last_name = COALESCE($3, last_name), phone = COALESCE($4, phone)
+      `UPDATE users SET first_name = COALESCE($2, first_name), last_name = COALESCE($3, last_name), phone = COALESCE($4, phone), profile_photo_url = COALESCE($5, profile_photo_url)
        WHERE id = $1
-       RETURNING id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones`,
-      [id, firstName, lastName, phone]
+       RETURNING id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, preferred_amenities, profile_photo_url`,
+      [id, firstName, lastName, phone, profilePhotoUrl]
     );
   },
 
-  async updatePreferences(id, { preferredTypes, preferredZones, budgetMax }) {
+  async updatePreferences(id, { preferredTypes, preferredZones, preferredAmenities, budgetMax }) {
     return queryOne(
-      `UPDATE users SET preferred_types = $2, preferred_zones = $3, budget_max = $4
+      `UPDATE users SET preferred_types = $2, preferred_zones = $3, preferred_amenities = COALESCE($4, preferred_amenities), budget_max = $5
        WHERE id = $1
-       RETURNING id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones`,
-      [id, preferredTypes || [], preferredZones || [], budgetMax || 0]
+       RETURNING id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, preferred_amenities`,
+      [id, preferredTypes || [], preferredZones || [], preferredAmenities || null, budgetMax || 0]
     );
   },
 

@@ -34,12 +34,24 @@ export const RecommendationService = {
   },
 
   filterByPreferences(biens, user) {
-    if (!user.preferred_types || user.preferred_types.length === 0) return biens;
-    const preferred = user.preferred_types.map((t) => t.toLowerCase());
-    const filtered = biens.filter((b) =>
-      b.property_type && preferred.includes(b.property_type.toLowerCase())
-    );
-    return filtered.length > 0 ? filtered : biens;
+    const types = (user.preferred_types || []).map((t) => t.toLowerCase());
+    const zones = (user.preferred_zones || []).map((z) => z.toLowerCase());
+    if (types.length === 0 && zones.length === 0) return biens;
+    const zoneMatch = (b) =>
+      zones.some((z) =>
+        (b.city && b.city.toLowerCase().includes(z)) ||
+        (b.district && b.district.toLowerCase().includes(z))
+      );
+    // 1) Types préférés d'abord ; si rien ne matche, on garde tout.
+    let filtered = types.length
+      ? biens.filter((b) => b.property_type && types.includes(b.property_type.toLowerCase()))
+      : biens;
+    if (filtered.length === 0) filtered = biens;
+    // 2) Les biens dans les zones préférées passent en premier.
+    if (zones.length) {
+      filtered = [...filtered].sort((a, b) => (zoneMatch(b) ? 1 : 0) - (zoneMatch(a) ? 1 : 0));
+    }
+    return filtered;
   },
 
   async estimatePrice(data) {

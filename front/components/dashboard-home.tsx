@@ -62,7 +62,8 @@ export function DashboardHome() {
   const fetchRecommendations = useCallback(async () => {
     try {
       const json = await getRecommendations()
-      const data = json.data?.results || json.data || json.results || []
+      // L'API renvoie { data: { count, recommendations } } — pas "results"
+      const data = json.data?.recommendations || json.data?.results || json.recommendations || []
       setRecommendations(Array.isArray(data) ? data.slice(0, 4) : [])
     } catch (err) {}
   }, [])

@@ -3,8 +3,9 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { Check, ArrowRight, Home, Building2, Trees, Store, Warehouse, Briefcase, Hotel, Bath, Car, Dumbbell, Waves } from "lucide-react"
+import { Check, ArrowRight, Home, Building2, Trees, Store, Warehouse, Briefcase, Hotel, Bath, Car, Dumbbell, Waves, Camera, User } from "lucide-react"
 import { NestFindLogo } from "@/components/nestfind-logo"
+import { getToken, updatePreferences, updateProfile } from "@/lib/api"
 
 const PROPERTY_TYPES = [
   { label: "Maison à louer", icon: Home },
@@ -20,6 +21,22 @@ const PROPERTY_TYPES = [
   { label: "Hotel", icon: Hotel },
   { label: "Résidence", icon: Building2 },
 ]
+
+// Libellés d'affichage → codes stockés en base (users.preferred_types)
+const TYPE_MAP: Record<string, string> = {
+  "Maison à louer": "maison",
+  "Maison à vendre": "maison",
+  "Appartement à louer": "appartement",
+  "Appartement à vendre": "appartement",
+  "Studio": "studio",
+  "Villa": "villa",
+  "Terrain": "terrain",
+  "Bureau commercial": "bureau",
+  "Magasin": "magasin",
+  "Entrepôt": "entrepot",
+  "Hotel": "hotel",
+  "Résidence": "residence",
+}
 
 const AMENITIES = [
   { label: "Piscine", icon: Waves },
@@ -53,7 +70,13 @@ export default function OnboardingPage() {
   const [selectedCities, setSelectedCities] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
-  const steps = [
+  // Étape profil (dernière) : prénom, nom, téléphone, photo
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [phone, setPhone] = useState("")
+  const [photo, setPhoto] = useState<string | null>(null)
+
+  const chipSteps = [
     {
       title: "Quel type de bien recherchez-vous ?",
       subtitle: "Sélectionnez un ou plusieurs types de biens immobiliers.",
@@ -76,9 +99,13 @@ export default function OnboardingPage() {
       setSelected: setSelectedCities,
     },
   ]
+  const isProfileStep = step === chipSteps.length
+  const totalSteps = chipSteps.length + 1
 
-  const current = steps[step]
-  const totalSelected = current.selected.length
+  const current = chipSteps[step] || null
+  const totalSelected = isProfileStep
+    ? [firstName, lastName, phone, photo].filter(Boolean).length
+    : current.selected.length
 
   const toggle = (label: string) => {
     current.setSelected((prev: string[]) =>
@@ -86,19 +113,57 @@ export default function OnboardingPage() {
     )
   }
 
-  const handleNext = () => {
-    if (step < steps.length - 1) {
+  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setPhoto(reader.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  // Sauvegarde réelle : préférences + profil sont persistés en base et
+  // réutilisés ensuite (recommandations, filtres, recherches).
+  const saveAll = async () => {
+    if (!getToken()) return // pas connecté → on passe sans sauvegarder
+    const preferredTypes = [...new Set(selectedTypes.map((l) => TYPE_MAP[l] || l.toLowerCase()))]
+    const tasks: Promise<unknown>[] = []
+    if (preferredTypes.length || selectedCities.length || selectedAmenities.length) {
+      tasks.push(
+        updatePreferences({
+          preferredTypes,
+          preferredZones: selectedCities,
+          preferredAmenities: selectedAmenities,
+        })
+      )
+    }
+    if (firstName.trim() || lastName.trim() || phone.trim() || photo) {
+      tasks.push(
+        updateProfile({
+          firstName: firstName.trim() || undefined,
+          lastName: lastName.trim() || undefined,
+          phone: phone.trim() || undefined,
+          profilePhoto: photo || undefined,
+        })
+      )
+    }
+    await Promise.allSettled(tasks)
+  }
+
+  const handleNext = async () => {
+    if (step < totalSteps - 1) {
       setStep(step + 1)
     } else {
       setLoading(true)
-      setTimeout(() => {
+      try {
+        await saveAll()
+      } finally {
         router.push("/dashboard")
-      }, 800)
+      }
     }
   }
 
   const handleSkip = () => {
-    if (step < steps.length - 1) {
+    if (step < totalSteps - 1) {
       setStep(step + 1)
     } else {
       router.push("/dashboard")
@@ -114,7 +179,7 @@ export default function OnboardingPage() {
 
       {/* Progress dots */}
       <div className="flex gap-2 mb-12">
-        {steps.map((_, i) => (
+        {Array.from({ length: totalSteps }).map((_, i) => (
           <div
             key={i}
             className={`h-2 rounded-full transition-all duration-300 ${
@@ -127,77 +192,120 @@ export default function OnboardingPage() {
       {/* Title */}
       <div className="text-center mb-12 anim-fade-up max-w-2xl">
         <h1 className="text-3xl font-bold text-foreground mb-3">
-          {current.title}
+          {isProfileStep ? "Complétez votre profil" : current.title}
         </h1>
         <p className="text-muted-foreground text-base">
-          {current.subtitle}
+          {isProfileStep
+            ? "Dernière étape : vos informations seront visibles par les annonceurs."
+            : current.subtitle}
         </p>
       </div>
 
-      {/* Chips */}
-      <div className="max-w-[640px] w-full">
-        <motion.div
-          className="flex flex-wrap gap-3 justify-center"
-          layout
-          transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.5 }}
-        >
-          {current.items.map((item) => {
-            const isSelected = current.selected.includes(item.label)
-            const Icon = item.icon
-            return (
-              <motion.button
-                key={item.label}
-                onClick={() => toggle(item.label)}
-                layout
-                initial={false}
-                animate={{
-                  backgroundColor: isSelected ? "var(--foreground)" : "transparent",
-                }}
-                whileHover={{
-                  backgroundColor: isSelected ? "var(--foreground)" : "var(--secondary)",
-                }}
-                whileTap={{ scale: 0.95 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 500,
-                  damping: 30,
-                  mass: 0.5,
-                  backgroundColor: { duration: 0.15 },
-                }}
-                className={`inline-flex items-center px-4 py-2.5 rounded-full text-base font-medium whitespace-nowrap ring-1 ring-inset transition-colors ${
-                  isSelected
-                    ? "text-background ring-foreground"
-                    : "text-foreground ring-border hover:ring-foreground/30"
-                }`}
-              >
-                <motion.div
-                  className="relative flex items-center gap-2"
-                  animate={{ paddingRight: isSelected ? "1.5rem" : "0" }}
-                  transition={{ ease: [0.175, 0.885, 0.32, 1.275], duration: 0.3 }}
+      {isProfileStep ? (
+        /* ── Étape profil ── */
+        <div className="w-full max-w-sm space-y-4 anim-fade-up">
+          {/* Photo */}
+          <div className="flex justify-center">
+            <label className="relative cursor-pointer group">
+              <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+              {photo ? (
+                <img src={photo} alt="Profil" className="w-24 h-24 rounded-full object-cover border-2 border-foreground/20" />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-muted border-2 border-dashed border-border flex items-center justify-center group-hover:border-foreground/40 transition-colors">
+                  <User className="w-8 h-8 text-muted-foreground" />
+                </div>
+              )}
+              <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-foreground text-background flex items-center justify-center">
+                <Camera className="w-4 h-4" />
+              </div>
+            </label>
+          </div>
+          <input
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            placeholder="Prénom"
+            className="w-full px-4 py-3 rounded-2xl border border-border bg-background text-sm outline-none focus:border-foreground/40"
+          />
+          <input
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            placeholder="Nom"
+            className="w-full px-4 py-3 rounded-2xl border border-border bg-background text-sm outline-none focus:border-foreground/40"
+          />
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Téléphone (+237…)"
+            type="tel"
+            className="w-full px-4 py-3 rounded-2xl border border-border bg-background text-sm outline-none focus:border-foreground/40"
+          />
+        </div>
+      ) : (
+        /* ── Chips ── */
+        <div className="max-w-[640px] w-full">
+          <motion.div
+            className="flex flex-wrap gap-3 justify-center"
+            layout
+            transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.5 }}
+          >
+            {current.items.map((item) => {
+              const isSelected = current.selected.includes(item.label)
+              const Icon = item.icon
+              return (
+                <motion.button
+                  key={item.label}
+                  onClick={() => toggle(item.label)}
+                  layout
+                  initial={false}
+                  animate={{
+                    backgroundColor: isSelected ? "var(--foreground)" : "transparent",
+                  }}
+                  whileHover={{
+                    backgroundColor: isSelected ? "var(--foreground)" : "var(--secondary)",
+                  }}
+                  whileTap={{ scale: 0.95 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 500,
+                    damping: 30,
+                    mass: 0.5,
+                    backgroundColor: { duration: 0.15 },
+                  }}
+                  className={`inline-flex items-center px-4 py-2.5 rounded-full text-base font-medium whitespace-nowrap ring-1 ring-inset transition-colors ${
+                    isSelected
+                      ? "text-background ring-foreground"
+                      : "text-foreground ring-border hover:ring-foreground/30"
+                  }`}
                 >
-                  {Icon && <Icon className="w-4 h-4" />}
-                  <span>{item.label}</span>
-                  <AnimatePresence>
-                    {isSelected && (
-                      <motion.span
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0, opacity: 0 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.5 }}
-                        className="absolute right-0"
-                      >
-                        <div className="w-5 h-5 rounded-full bg-background flex items-center justify-center">
-                          <Check className="w-3 h-3 text-foreground" strokeWidth={2.5} />
-                        </div>
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              </motion.button>
-            )
-          })}
-        </motion.div>
-      </div>
+                  <motion.div
+                    className="relative flex items-center gap-2"
+                    animate={{ paddingRight: isSelected ? "1.5rem" : "0" }}
+                    transition={{ ease: [0.175, 0.885, 0.32, 1.275], duration: 0.3 }}
+                  >
+                    {Icon && <Icon className="w-4 h-4" />}
+                    <span>{item.label}</span>
+                    <AnimatePresence>
+                      {isSelected && (
+                        <motion.span
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0, opacity: 0 }}
+                          transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.5 }}
+                          className="absolute right-0"
+                        >
+                          <div className="w-5 h-5 rounded-full bg-background flex items-center justify-center">
+                            <Check className="w-3 h-3 text-foreground" strokeWidth={2.5} />
+                          </div>
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                </motion.button>
+              )
+            })}
+          </motion.div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="mt-16 flex flex-col items-center gap-4 anim-fade-up">
@@ -220,7 +328,7 @@ export default function OnboardingPage() {
           >
             {loading ? (
               "Enregistrement..."
-            ) : step < steps.length - 1 ? (
+            ) : step < totalSteps - 1 ? (
               <>
                 Suivant
                 <ArrowRight className="w-4 h-4" />

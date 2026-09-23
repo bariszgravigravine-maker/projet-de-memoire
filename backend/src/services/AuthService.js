@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';
 import UserModel from '../models/UserModel.js';
+import CloudinaryService from './CloudinaryService.js';
 
 /**
  * Service d'authentification — inscription, connexion, profil, préférences.
@@ -67,7 +68,17 @@ export const AuthService = {
   },
 
   async updateProfile(userId, data) {
-    const user = await UserModel.updateProfile(userId, data);
+    // Photo de profil : si le front envoie une data URL base64 (choisie dans
+    // l'onboarding ou le profil), on l'upload vers Cloudinary d'abord.
+    let profilePhotoUrl = data.profilePhotoUrl || null;
+    const rawPhoto = data.profilePhoto || data.photo;
+    if (typeof rawPhoto === 'string' && rawPhoto.startsWith('data:image')) {
+      const uploaded = await CloudinaryService.uploadImage(rawPhoto, {
+        folder: `nestfind/avatars`,
+      });
+      if (uploaded) profilePhotoUrl = uploaded;
+    }
+    const user = await UserModel.updateProfile(userId, { ...data, profilePhotoUrl });
     if (!user) {
       const err = new Error('Utilisateur introuvable');
       err.status = 404;

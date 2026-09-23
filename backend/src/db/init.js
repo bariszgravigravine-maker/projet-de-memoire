@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Colonnes ajoutées après coup (idempotent sur bases existantes)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_amenities TEXT[] DEFAULT '{}';
+
 -- --- Biens immobiliers ---
 CREATE TABLE IF NOT EXISTS properties (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
