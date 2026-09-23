@@ -38,7 +38,17 @@ export const AdModel = {
   },
 
   async findByOwner(ownerId) {
-    return query('SELECT * FROM ads WHERE owner_id = $1 AND status = $2 ORDER BY published_at DESC', [ownerId, 'ACTIVE']);
+    // Stats par annonce : vues cumulées (view_count), likes (favorites) et
+    // visiteurs uniques (interactions VIEW de comptes distincts).
+    return query(
+      `SELECT a.*,
+        (SELECT COUNT(*)::int FROM favorites f WHERE f.ad_id = a.id) AS likes_count,
+        (SELECT COUNT(DISTINCT i.user_id)::int FROM interactions i
+          WHERE i.ad_id = a.id AND i.type = 'VIEW') AS unique_viewers
+       FROM ads a WHERE a.owner_id = $1 AND a.status = $2
+       ORDER BY a.published_at DESC`,
+      [ownerId, 'ACTIVE']
+    );
   },
 
   async updateStatus(id, status) {

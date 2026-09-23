@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { ArrowLeft, Plus, Trash2, Eye, Home, Loader2 } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Eye, Home, Loader2, Heart, Users } from "lucide-react"
 import { listMyAds, deleteAd } from "@/lib/api"
 import { Skeleton } from "@/components/skeleton"
 
@@ -70,6 +70,32 @@ export default function MesAnnoncesPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6">
+        {/* Stats globales : vues cumulées, visiteurs uniques, likes */}
+        {!loading && !error && ads.length > 0 && (
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="rounded-2xl bg-card border border-border p-4 text-center">
+              <Eye className="w-5 h-5 mx-auto text-foreground mb-1.5" />
+              <p className="text-xl font-bold text-foreground">
+                {ads.reduce((s, a) => s + (a.view_count || 0), 0).toLocaleString("fr-FR")}
+              </p>
+              <p className="text-[11px] text-muted-foreground">Vues totales</p>
+            </div>
+            <div className="rounded-2xl bg-card border border-border p-4 text-center">
+              <Users className="w-5 h-5 mx-auto text-foreground mb-1.5" />
+              <p className="text-xl font-bold text-foreground">
+                {ads.reduce((s, a) => s + (a.unique_viewers || 0), 0).toLocaleString("fr-FR")}
+              </p>
+              <p className="text-[11px] text-muted-foreground">Visiteurs uniques</p>
+            </div>
+            <div className="rounded-2xl bg-card border border-border p-4 text-center">
+              <Heart className="w-5 h-5 mx-auto text-foreground mb-1.5" />
+              <p className="text-xl font-bold text-foreground">
+                {ads.reduce((s, a) => s + (a.likes_count || 0), 0).toLocaleString("fr-FR")}
+              </p>
+              <p className="text-[11px] text-muted-foreground">Likes reçus</p>
+            </div>
+          </div>
+        )}
         {loading && (
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -136,7 +162,7 @@ export default function MesAnnoncesPage() {
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {ad.price?.toLocaleString("fr-FR")} FCFA
                     </p>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                         ad.status === "ACTIVE" ? "bg-green-100 text-green-700" :
                         ad.status === "EN_ATTENTE" ? "bg-amber-100 text-amber-700" :
@@ -144,12 +170,18 @@ export default function MesAnnoncesPage() {
                       }`}>
                         {ad.status}
                       </span>
-                      {ad.view_count != null && (
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <Eye className="w-3 h-3" />
-                          {ad.view_count}
-                        </span>
-                      )}
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground" title="Vues de la page annonce">
+                        <Eye className="w-3 h-3" />
+                        {ad.view_count || 0} vues
+                      </span>
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground" title="Personnes différentes ayant visité">
+                        <Users className="w-3 h-3" />
+                        {ad.unique_viewers || 0} visiteurs
+                      </span>
+                      <span className="flex items-center gap-1 text-[10px] text-red-500" title="Ajouté en favoris">
+                        <Heart className="w-3 h-3" />
+                        {ad.likes_count || 0}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 mt-2">

@@ -1,6 +1,7 @@
 import { asyncHandler } from '../middlewares/errorHandler.js';
 import { success, created, noContent } from '../utils/response.js';
 import AdService from '../services/AdService.js';
+import InteractionModel from '../models/InteractionModel.js';
 import { sanitizePreferenceCodes } from '../constants/preferences.js';
 
 export const searchAds = asyncHandler(async (req, res) => {
@@ -41,6 +42,11 @@ export const searchAds = asyncHandler(async (req, res) => {
 
 export const getAdDetail = asyncHandler(async (req, res) => {
   const ad = await AdService.getDetail(req.params.id);
+  // Enregistre le visiteur (compte connecté ≠ propriétaire) — alimente le
+  // compteur "visiteurs uniques" de la page Mes annonces.
+  if (req.user?.id && req.user.id !== ad.owner_id) {
+    InteractionModel.recordView({ userId: req.user.id, adId: req.params.id }).catch(() => {});
+  }
   success(res, ad);
 });
 
