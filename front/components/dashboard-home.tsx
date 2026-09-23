@@ -8,7 +8,7 @@ import {
   Sparkles, ChevronLeft, MessageSquare, Eye, Star, Calendar
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getAds, getRecommendations, addFavorite, removeFavorite, listFavorites } from "@/lib/api"
+import { getAds, getRecommendations, addFavorite, removeFavorite, listFavorites, openConversation, getToken } from "@/lib/api"
 import { SkeletonGrid } from "@/components/skeleton"
 import confetti from "canvas-confetti"
 
@@ -442,7 +442,25 @@ export function DashboardHome() {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => router.push(`/chat?ad_id=${selected.ad_id || selected.id}`)}
+                        onClick={async () => {
+                          // Chat 1:1 avec l'annonceur — pas le chat IA (/chat)
+                          if (!getToken()) {
+                            router.push(`/auth?redirect=/dashboard`)
+                            return
+                          }
+                          if (!selected.owner_id) {
+                            router.push(`/annonce/${selected.ad_id || selected.id}`)
+                            return
+                          }
+                          try {
+                            const res = await openConversation(selected.owner_id)
+                            const conv = res.data || res
+                            const convId = conv.id || conv.conversation_id
+                            router.push(convId ? `/messages?conversationId=${convId}` : "/messages")
+                          } catch {
+                            router.push("/messages")
+                          }
+                        }}
                         className="w-8 h-8 flex items-center justify-center border border-border rounded-full hover:bg-muted transition-colors"
                       >
                         <MessageSquare size={12} className="text-foreground" />
