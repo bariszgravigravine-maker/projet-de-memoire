@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, X, Plus, Home, Loader2, Sparkles, MapPin } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createAd, getToken, generateDescription, detectProximity } from "@/lib/api"
+import { createAd, getToken, generateDescription, detectProximity, geocodePlace } from "@/lib/api"
 import { LocationPickerMap } from "@/components/location-picker-map"
 
 interface DetectedPref {
@@ -49,6 +49,12 @@ export default function PublierAnnoncePage() {
   const [detectedPrefs, setDetectedPrefs] = useState<DetectedPref[]>([])
   const [locating, setLocating] = useState(false)
 
+  // Pin posé automatiquement quand le quartier/adresse est géocodé
+  const [geoPin, setGeoPin] = useState<{ lat: number; lon: number } | null>(null)
+  // Nom de quartier auto-rempli par le géocodage inversé : évite de relancer
+  // une recherche en boucle quand on écrit nous-mêmes dans le champ.
+  const autoDistrictRef = useRef<string | null>(null)
+
   const token = typeof window !== "undefined" ? getToken() : null
 
   const update = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }))
@@ -64,10 +70,11 @@ export default function PublierAnnoncePage() {
       setDetectedPrefs(Array.isArray(data.preferences) ? data.preferences : [])
       const loc = data.location
       if (loc) {
+        // Le quartier détecté remplace la saisie : c'est le nom officiel
+        // OSM du lieu, garantissant des données de recherche fiables.
+        autoDistrictRef.current = loc.district || null
         setForm((prev) => ({
           ...prev,
-          // Le quartier détecté remplace la saisie : c'est le nom officiel
-          // OSM du lieu, garantissant des données de recherche fiables.
           district: loc.district || prev.district,
           address: prev.address || loc.address || "",
           city: loc.city && CITIES.includes(loc.city) ? loc.city : prev.city,
@@ -79,6 +86,30 @@ export default function PublierAnnoncePage() {
       setLocating(false)
     }
   }
+
+  // Géocodage automatique : taper le quartier (ou l'adresse) positionne la
+  // carte et pose le pin tout seul — plus besoin de chercher à la main.
+  useEffect(() => {
+    const district = form.district.trim()
+    const address = form.address.trim()
+    // Ne pas relancer quand le champ vient d'être auto-rempli par le
+    // géocodage inversé (clic carte / pin auto).
+    if (district && district === autoDistrictRef.current) return
+    if (district.length < 3 && address.length < 5) return
+    const q = [address, district, form.city].filter(Boolean).join(", ")
+    const t = setTimeout(async () => {
+      try {
+        const res = await geocodePlace(q)
+        const geo = res?.data || res
+        if (geo?.latitude != null && geo?.longitude != null) {
+          setGeoPin({ lat: geo.latitude, lon: geo.longitude })
+          handleMapPick(geo.latitude, geo.longitude)
+        }
+      } catch {}
+    }, 800)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.district, form.address, form.city])
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -268,7 +299,7 @@ export default function PublierAnnoncePage() {
             </div>
           </div>
 
-          {/* Localisation : ville → mini-map (pin) → quartier/adresse auto-remplis */}
+          {/* Localisation : ville → quartier/adresse (géocodage auto) → carte */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Ville</label>
             <Select value={form.city} onValueChange={(v) => update("city", v)}>
@@ -283,16 +314,38 @@ export default function PublierAnnoncePage() {
             </Select>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Quartier</label>
+              <input
+                value={form.district}
+                onChange={(e) => update("district", e.target.value)}
+                placeholder="Ex: Bastos — localise la carte"
+                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Adresse <span className="text-muted-foreground font-normal">(optionnel)</span>
+              </label>
+              <input
+                value={form.address}
+                onChange={(e) => update("address", e.target.value)}
+                placeholder="Rue, repère..."
+                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
               Localisation sur la carte
             </label>
             <p className="text-xs text-muted-foreground mb-2">
-              Cliquez sur la carte pour poser un pin à l&apos;emplacement exact du bien
-              (ou utilisez « Ma position »). Le quartier, la ville et les équipements
-              à proximité sont détectés automatiquement.
+              Le quartier saisi ci-dessus positionne la carte automatiquement.
+              Vous pouvez aussi cliquer pour affiner le pin, ou utiliser « Ma position ».
             </p>
-            <LocationPickerMap city={form.city} onPick={handleMapPick} />
+            <LocationPickerMap city={form.city} pin={geoPin} onPick={handleMapPick} />
             <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
               {locating ? (
                 <>
@@ -310,29 +363,6 @@ export default function PublierAnnoncePage() {
                   Aucun pin posé — la position sera approximative
                 </>
               )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Quartier</label>
-              <input
-                value={form.district}
-                onChange={(e) => update("district", e.target.value)}
-                placeholder="Détecté via la carte"
-                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Adresse <span className="text-muted-foreground font-normal">(optionnel)</span>
-              </label>
-              <input
-                value={form.address}
-                onChange={(e) => update("address", e.target.value)}
-                placeholder="Rue, repère..."
-                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
             </div>
           </div>
 

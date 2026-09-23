@@ -36,4 +36,19 @@ router.get('/', optionalAuth, asyncHandler(async (req, res) => {
   success(res, { preferences, location });
 }));
 
+/**
+ * GET /api/proximite/geocode?q=<lieu>
+ *
+ * Géocodage direct (nom de quartier/adresse/ville → coordonnées) pour la
+ * mini-map du formulaire de publication : taper "Ekie" positionne la carte
+ * automatiquement, sans que l'utilisateur ait à chercher à la main.
+ * Utilise les repères connus puis Nominatim.
+ */
+router.get('/geocode', optionalAuth, asyncHandler(async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 3) return success(res, null);
+  const geo = await GeocodingService.geocode(q).catch(() => null);
+  success(res, geo);
+}));
+
 export default router;

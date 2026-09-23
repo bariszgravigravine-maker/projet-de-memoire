@@ -34,6 +34,8 @@ interface LocationPickerMapProps {
   city: string
   /** Appelé à chaque clic sur la carte avec les coordonnées du pin */
   onPick: (lat: number, lon: number) => void
+  /** Pin imposé de l'extérieur (géocodage du quartier saisi) — optionnel */
+  pin?: { lat: number; lon: number } | null
 }
 
 /**
@@ -42,7 +44,7 @@ interface LocationPickerMapProps {
  * géocodage inversé (vrai nom du quartier) et à la détection automatique
  * des équipements de proximité.
  */
-export function LocationPickerMap({ city, onPick }: LocationPickerMapProps) {
+export function LocationPickerMap({ city, onPick, pin }: LocationPickerMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markerRef = useRef<maplibregl.Marker | null>(null)
@@ -112,6 +114,14 @@ export function LocationPickerMap({ city, onPick }: LocationPickerMapProps) {
     if (!map || !center) return
     map.flyTo({ center, zoom: 12, duration: 900 })
   }, [city])
+
+  // Pin externe : le quartier/adresse saisi a été géocodé — la carte se
+  // positionne seule, l'utilisateur n'a rien à chercher à la main.
+  useEffect(() => {
+    if (!pin) return
+    placePin(pin.lon, pin.lat)
+    mapRef.current?.flyTo({ center: [pin.lon, pin.lat], zoom: 16, duration: 900 })
+  }, [pin, placePin])
 
   // Bouton "Ma position" : pose le pin sur la position GPS de l'utilisateur
   const locateMe = useCallback(() => {

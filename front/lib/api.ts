@@ -138,6 +138,11 @@ export async function detectProximity(lat: number, lon: number) {
   return apiFetch(`/proximite?lat=${lat}&lon=${lon}`)
 }
 
+// Géocodage direct : nom de quartier/adresse/ville → coordonnées (pin auto)
+export async function geocodePlace(q: string) {
+  return apiFetch(`/proximite/geocode?q=${encodeURIComponent(q)}`)
+}
+
 // === FAVORIS ===
 export async function listFavorites() {
   return apiFetch("/favoris")
