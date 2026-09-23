@@ -8,6 +8,7 @@ router.use(authMiddleware);
 
 router.get('/conversations', ctrl.listConversations);
 router.post('/conversations', ctrl.openConversation);
+router.get('/users/search', ctrl.searchUsers);
 router.get('/conversations/:conversationId/messages', ctrl.getMessages);
 router.post('/conversations/:conversationId/messages', ctrl.sendMessage);
 router.post('/conversations/:conversationId/call', ctrl.startCall);

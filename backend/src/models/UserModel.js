@@ -70,6 +70,28 @@ export const UserModel = {
     );
   },
 
+  /**
+   * Recherche d'utilisateurs par nom, email ou téléphone — pour démarrer une
+   * conversation même si l'utilisateur n'a jamais publié d'annonce.
+   * Ne retourne que des champs publics (pas d'email/phone exposés).
+   */
+  async searchUsers(q, { limit = 15 } = {}) {
+    return query(
+      `SELECT id, first_name, last_name, profile_photo_url, role
+       FROM users
+       WHERE status = 'ACTIF' AND (
+         unaccent(COALESCE(first_name, '')) ILIKE unaccent($1) OR
+         unaccent(COALESCE(last_name, '')) ILIKE unaccent($1) OR
+         unaccent(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) ILIKE unaccent($1) OR
+         email ILIKE $1 OR
+         COALESCE(phone, '') ILIKE $1
+       )
+       ORDER BY first_name NULLS LAST, last_name NULLS LAST
+       LIMIT $2`,
+      [`%${q}%`, limit]
+    );
+  },
+
   async setStatus(id, status) {
     return queryOne('UPDATE users SET status = $2 WHERE id = $1 RETURNING id, status', [id, status]);
   },

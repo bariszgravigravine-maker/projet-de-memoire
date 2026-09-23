@@ -188,6 +188,11 @@ export async function openConversation(targetUserId: string) {
   return apiFetch("/chat/conversations", { method: "POST", body: JSON.stringify({ targetUserId }) })
 }
 
+// Recherche d'utilisateurs pour démarrer une conversation (même sans annonce)
+export async function searchUsers(q: string) {
+  return apiFetch(`/chat/users/search?q=${encodeURIComponent(q)}`)
+}
+
 export async function getMessages(conversationId: string) {
   return apiFetch(`/chat/conversations/${conversationId}/messages`)
 }

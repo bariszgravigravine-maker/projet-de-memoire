@@ -28,6 +28,13 @@ export const countUnreadMessages = asyncHandler(async (req, res) => {
   success(res, result);
 });
 
+export const searchUsers = asyncHandler(async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return success(res, []);
+  const users = await ChatService.searchUsers(req.user.id, q);
+  success(res, users);
+});
+
 export const startCall = asyncHandler(async (req, res) => {
   const result = await ChatService.startCall(req.user.id, req.params.conversationId, req.body.video);
   success(res, result);
@@ -43,4 +50,4 @@ export const endCall = asyncHandler(async (req, res) => {
   success(res, result);
 });
 
-export default { listConversations, openConversation, getMessages, sendMessage, countUnreadMessages, startCall, joinCall, endCall };
+export default { listConversations, openConversation, getMessages, sendMessage, countUnreadMessages, searchUsers, startCall, joinCall, endCall };

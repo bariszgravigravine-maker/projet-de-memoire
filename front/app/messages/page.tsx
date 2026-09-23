@@ -2,14 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, MoreVertical, Phone, Video, Search, Send, LayoutDashboard, PhoneIncoming, PhoneOff } from "lucide-react"
+import { ArrowLeft, MoreVertical, Phone, Video, Search, Send, LayoutDashboard, PhoneIncoming, PhoneOff, X } from "lucide-react"
 import { UserChatComposer } from "@/components/user-chat-composer"
 import { CallOverlay } from "@/components/call-overlay"
 import { Skeleton } from "@/components/skeleton"
 import { cn } from "@/lib/utils"
 import {
   listConversations, getMessages, sendMessage as apiSendMessage, countUnreadMessages, getUser,
-  startCall as apiStartCall, joinCall as apiJoinCall, endCall as apiEndCall
+  startCall as apiStartCall, joinCall as apiJoinCall, endCall as apiEndCall, openConversation, searchUsers
 } from "@/lib/api"
 import { useRealtime } from "@/components/realtime-provider"
 
@@ -58,6 +58,12 @@ function MessagesContent() {
   const [showList, setShowList] = useState(true)
   const [unreadTotal, setUnreadTotal] = useState(0)
   const { socket, setUnreadMessages, onlineUsers } = useRealtime()
+
+  // Recherche d'utilisateurs (nouvelle conversation — même sans annonce publiée)
+  type FoundUser = { id: string; first_name?: string; last_name?: string; profile_photo_url?: string; role?: string }
+  const [userQuery, setUserQuery] = useState("")
+  const [userResults, setUserResults] = useState<FoundUser[]>([])
+  const [searchingUsers, setSearchingUsers] = useState(false)
 
   // Appels LiveKit
   type ActiveCall = { token: string; url: string; video: boolean; conversationId: string; peerName: string }
@@ -136,6 +142,46 @@ function MessagesContent() {
 
   useEffect(() => {
     fetchConversations()
+  }, [fetchConversations])
+
+  // Recherche d'utilisateurs avec debounce (300 ms)
+  useEffect(() => {
+    const q = userQuery.trim()
+    if (q.length < 2) {
+      setUserResults([])
+      setSearchingUsers(false)
+      return
+    }
+    setSearchingUsers(true)
+    const t = setTimeout(async () => {
+      try {
+        const res = await searchUsers(q)
+        setUserResults(res.data || res || [])
+      } catch {
+        setUserResults([])
+      } finally {
+        setSearchingUsers(false)
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [userQuery])
+
+  // Démarre une conversation avec un utilisateur trouvé (publié ou non)
+  const handleStartConversation = useCallback(async (user: FoundUser) => {
+    try {
+      const res = await openConversation(user.id)
+      const conv = res.data || res
+      const convId = conv.id || conv.conversation_id
+      setUserQuery("")
+      setUserResults([])
+      await fetchConversations()
+      if (convId) {
+        setSelectedId(convId)
+        setShowList(false)
+      }
+    } catch (err: any) {
+      setError(err?.message || "Impossible d'ouvrir la conversation")
+    }
   }, [fetchConversations])
 
   // Un conversationId dans l'URL prend toujours la priorité
@@ -294,6 +340,61 @@ function MessagesContent() {
             <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-xs font-bold">
               {unreadTotal}
             </span>
+          )}
+        </div>
+
+        {/* Recherche d'utilisateur : nouvelle conversation même sans annonce */}
+        <div className="px-4 py-3 border-b border-stone-200 relative">
+          <div className="flex items-center gap-2 bg-stone-100 rounded-full px-3 py-2">
+            <Search className="w-4 h-4 text-stone-400 shrink-0" />
+            <input
+              value={userQuery}
+              onChange={(e) => setUserQuery(e.target.value)}
+              placeholder="Rechercher un utilisateur…"
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-stone-400"
+            />
+            {userQuery && (
+              <button onClick={() => { setUserQuery(""); setUserResults([]) }} className="text-stone-400 hover:text-stone-600">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Résultats de recherche */}
+          {userQuery.trim().length >= 2 && (
+            <div className="absolute left-4 right-4 top-full mt-1 z-20 bg-white border border-stone-200 rounded-2xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
+              {searchingUsers && (
+                <p className="px-4 py-3 text-xs text-stone-400">Recherche…</p>
+              )}
+              {!searchingUsers && userResults.length === 0 && (
+                <p className="px-4 py-3 text-xs text-stone-400">Aucun utilisateur trouvé</p>
+              )}
+              {!searchingUsers && userResults.map((u) => {
+                const name = `${u.first_name || ""} ${u.last_name || ""}`.trim() || "Utilisateur"
+                return (
+                  <button
+                    key={u.id}
+                    onClick={() => handleStartConversation(u)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-stone-50 text-left border-b border-stone-50 last:border-0"
+                  >
+                    {u.profile_photo_url ? (
+                      <img src={u.profile_photo_url} alt={name} className="w-9 h-9 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-bold">
+                        {getInitials(name)}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{name}</p>
+                      <p className="text-[11px] text-stone-400">
+                        {u.role === "AGENT" ? "Agent" : u.role === "ADMIN" ? "Admin" : "Utilisateur"}
+                      </p>
+                    </div>
+                    <Send className="w-4 h-4 text-stone-300" />
+                  </button>
+                )
+              })}
+            </div>
           )}
         </div>
 

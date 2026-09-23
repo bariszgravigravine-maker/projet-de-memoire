@@ -136,6 +136,16 @@ export const ChatService = {
   },
 
   /**
+   * Recherche d'utilisateurs pour démarrer une conversation — inclut les
+   * comptes qui n'ont jamais publié d'annonce. L'utilisateur courant est
+   * exclu des résultats.
+   */
+  async searchUsers(myId, q) {
+    const users = await UserModel.searchUsers(q);
+    return users.filter((u) => u.id !== myId);
+  },
+
+  /**
    * Démarre un appel : génère le token de l'appelant et notifie le destinataire
    * via Socket.IO (événement "call:incoming").
    */
