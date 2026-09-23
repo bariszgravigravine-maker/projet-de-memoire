@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { NestFindLogo } from "@/components/nestfind-logo"
-import { countUnreadMessages, listNotifications } from "@/lib/api"
+import { countUnreadMessages, listNotifications, getUser } from "@/lib/api"
 import { useRealtime } from "@/components/realtime-provider"
 
 type NavItem = "home" | "liked" | "search" | "messages" | "profile"
@@ -48,6 +48,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const isSearchPage = pathname === "/dashboard/search"
   const { unreadMessages: rtMessages, unreadNotifs: rtNotifs, setUnreadMessages, setUnreadNotifs } = useRealtime()
+
+  // Avatar réel de l'utilisateur (photo choisie à l'onboarding / profil)
+  const [avatar, setAvatar] = useState("/images/agent.jpg")
+  useEffect(() => {
+    const u = getUser()
+    if (u?.profile_photo_url) setAvatar(u.profile_photo_url)
+  }, [])
 
   useEffect(() => {
     if (isSearchPage) return
@@ -93,7 +100,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             >
               <Bell size={17} className="text-foreground" />
               {rtNotifs > 0 && (
-                <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full anim-pop-in" />
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center anim-pop-in">
+                  {rtNotifs > 99 ? "99+" : rtNotifs}
+                </span>
               )}
             </button>
             <button
@@ -109,7 +118,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               onClick={() => window.location.href = "/dashboard/profile"}
               className="w-8 h-8 rounded-full overflow-hidden border-2 border-foreground/10 hover:opacity-80 transition-opacity"
             >
-              <Image src="/images/agent.jpg" alt="Profile" width={32} height={32} className="object-cover w-full h-full" />
+              <Image src={avatar} alt="Profile" width={32} height={32} className="object-cover w-full h-full" />
             </button>
           </div>
         </div>

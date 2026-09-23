@@ -82,6 +82,9 @@ export function ProfileView() {
       }
       setUser(normalized)
       setForm(normalized)
+      // La photo choisie à l'onboarding est stockée côté serveur
+      // (profile_photo_url) — sans ça l'avatar restait l'image par défaut.
+      if (data.profile_photo_url) setProfileImage(data.profile_photo_url)
     } catch (err) {
       // Keep mock data if not authenticated
     }

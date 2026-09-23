@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react"
 import { io, Socket } from "socket.io-client"
 import { PhoneIncoming, PhoneOff } from "lucide-react"
-import { SOCKET_URL, startCall as apiStartCall, joinCall as apiJoinCall, endCall as apiEndCall } from "@/lib/api"
+import { SOCKET_URL, startCall as apiStartCall, joinCall as apiJoinCall, endCall as apiEndCall, countUnreadMessages, countUnreadNotifications } from "@/lib/api"
 import { CallOverlay } from "@/components/call-overlay"
 
 type ActiveCall = { token: string; url: string; video: boolean; conversationId: string; peerName: string }
@@ -61,10 +61,20 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const [onlineUsers, setOnlineUsers] = useState<string[]>([])
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null)
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+
+  // Le token n'existe pas au premier rendu (landing → login). Sans ce watcher,
+  // le socket ne se connectait JAMAIS après la connexion → pas de notifications
+  // temps réel, pas d'appels entrants. On observe localStorage jusqu'au login.
+  useEffect(() => {
+    const read = () => setToken(localStorage.getItem("immo_token"))
+    read()
+    const t = setInterval(read, 2000)
+    window.addEventListener("storage", read)
+    return () => { clearInterval(t); window.removeEventListener("storage", read) }
+  }, [])
 
   useEffect(() => {
-    // Get token from localStorage
-    const token = typeof window !== "undefined" ? localStorage.getItem("immo_token") : null
     if (!token) return
 
     // En production sur Vercel, les rewrites HTTP peuvent proxier le transport
@@ -85,6 +95,14 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     s.on("connect", () => {
       console.log("[WS] Connecté")
       setConnected(true)
+      // Compteurs initiaux : la cloche/badge reflètent l'état réel dès la
+      // connexion, sans attendre un nouvel événement.
+      countUnreadMessages()
+        .then((r) => setUnreadMessages(r?.data?.count ?? 0))
+        .catch(() => {})
+      countUnreadNotifications()
+        .then((r) => setUnreadNotifs(r?.data?.count ?? r?.data ?? 0))
+        .catch(() => {})
     })
 
     s.on("disconnect", () => {
@@ -130,7 +148,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     return () => {
       s.disconnect()
     }
-  }, [])
+  }, [token])
 
   const incrementMessages = useCallback(() => {
     setUnreadMessages((prev) => prev + 1)

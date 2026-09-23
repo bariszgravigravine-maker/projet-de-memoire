@@ -84,11 +84,17 @@ export async function getProfile() {
 }
 
 export async function updateProfile(data: any) {
-  return apiFetch("/auth/profile", { method: "PUT", body: JSON.stringify(data) })
+  const json = await apiFetch("/auth/profile", { method: "PUT", body: JSON.stringify(data) })
+  // Rafraîchit le user en localStorage — la photo/nom de l'onboarding sont
+  // ensuite visibles partout (header, profil…) sans re-login.
+  if (json.data) saveUser(json.data)
+  return json
 }
 
 export async function updatePreferences(data: any) {
-  return apiFetch("/auth/preferences", { method: "PUT", body: JSON.stringify(data) })
+  const json = await apiFetch("/auth/preferences", { method: "PUT", body: JSON.stringify(data) })
+  if (json.data) saveUser(json.data)
+  return json
 }
 
 // === ANNONCES ===
