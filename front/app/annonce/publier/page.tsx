@@ -23,6 +23,10 @@ const CITIES = [
   "Maroua", "Buea", "Limbe", "Kribi", "Ebolowa", "Ngaoundéré", "Dschang"
 ]
 
+// Types résidentiels : chambres/douches ont du sens. Pour terrain, bureau,
+// magasin, entrepôt… on masque ces champs — le formulaire s'adapte au bien.
+const RESIDENTIAL_TYPES = ["maison", "appartement", "studio", "villa", "résidence", "hôtel"]
+
 export default function PublierAnnoncePage() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -251,7 +255,18 @@ export default function PublierAnnoncePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">Type de bien</label>
-              <Select value={form.type} onValueChange={(v) => update("type", v)}>
+              <Select
+                value={form.type}
+                onValueChange={(v) =>
+                  // Type non résidentiel (terrain, bureau…) : on purge les
+                  // champs chambres/douches pour ne pas les envoyer au backend.
+                  setForm((prev) => ({
+                    ...prev,
+                    type: v,
+                    ...(RESIDENTIAL_TYPES.includes(v) ? {} : { bedrooms: "", bathrooms: "" }),
+                  }))
+                }
+              >
                 <SelectTrigger className="w-full h-12 rounded-xl px-4 text-sm capitalize">
                   <SelectValue />
                 </SelectTrigger>
@@ -264,10 +279,10 @@ export default function PublierAnnoncePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className={`grid gap-4 ${RESIDENTIAL_TYPES.includes(form.type) ? "grid-cols-3" : "grid-cols-1"}`}>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">
-                Superficie (m²) <span className="text-muted-foreground font-normal">(optionnel)</span>
+                Superficie (m²){RESIDENTIAL_TYPES.includes(form.type) && <span className="text-muted-foreground font-normal"> (optionnel)</span>}
               </label>
               <input
                 type="number"
@@ -277,26 +292,30 @@ export default function PublierAnnoncePage() {
                 className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Chambres</label>
-              <input
-                type="number"
-                value={form.bedrooms}
-                onChange={(e) => update("bedrooms", e.target.value)}
-                placeholder="4"
-                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Douches</label>
-              <input
-                type="number"
-                value={form.bathrooms}
-                onChange={(e) => update("bathrooms", e.target.value)}
-                placeholder="2"
-                className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
+            {RESIDENTIAL_TYPES.includes(form.type) && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Chambres</label>
+                  <input
+                    type="number"
+                    value={form.bedrooms}
+                    onChange={(e) => update("bedrooms", e.target.value)}
+                    placeholder="4"
+                    className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Douches</label>
+                  <input
+                    type="number"
+                    value={form.bathrooms}
+                    onChange={(e) => update("bathrooms", e.target.value)}
+                    placeholder="2"
+                    className="w-full rounded-xl border border-input bg-transparent px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           {/* Localisation : ville → quartier/adresse (géocodage auto) → carte */}
