@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation, LocateFixed, Crosshair, ChevronRight, Bed, Bath, GripHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getAds, agentSearch, listPreferences } from "@/lib/api"
+import { getAds, getAdDetail, agentSearch, listPreferences } from "@/lib/api"
 import { Property2DMap } from "@/components/property-2d-map"
 
 const POPULAR_CITIES = ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Garoua", "Kribi", "Buea", "Limbe", "Bertoua", "Maroua", "Ngaoundéré", "Ebolowa"]
@@ -109,6 +109,8 @@ interface MapActions {
 
 export function SearchView() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const targetAdId = searchParams.get("ad_id")
   const [query, setQuery] = useState("")
   const [type, setType] = useState("Tous")
   const [priceMin, setPriceMin] = useState("")
@@ -368,11 +370,46 @@ export function SearchView() {
   }, [query])
 
   // Fetch initial results once on mount
+  // Lancement initial — ignoré quand on arrive avec ?ad_id= (bien ciblé
+  // depuis le dashboard : on affiche ce bien, pas une recherche complète).
   useEffect(() => {
     if (hasFetchedRef.current) return
     hasFetchedRef.current = true
-    handleSearch()
-  }, [handleSearch])
+    if (!targetAdId) handleSearch()
+  }, [handleSearch, targetAdId])
+
+  // ?ad_id=<id> : charge le bien, le montre seul sur la carte + overlay
+  useEffect(() => {
+    if (!targetAdId) return
+    let cancelled = false
+    let retry: ReturnType<typeof setTimeout> | null = null
+    ;(async () => {
+      try {
+        const json = await getAdDetail(targetAdId)
+        const ad = json?.data || json
+        if (!ad || cancelled) return
+        setResults([ad])
+        setSearched(true)
+        // Le bien seul : pas d'auto-fit sur les autres marqueurs — le flyTo
+        // pilote la caméra, l'overlay card s'ouvre directement.
+        mapActionsRef.current?.setSuppressAutoFit(true)
+        setSelectedProperty(ad)
+        setCardOffset({ x: 0, y: 0 })
+        const fly = () => {
+          if (cancelled || ad.latitude == null || ad.longitude == null) return
+          mapActionsRef.current?.setSuppressAutoFit(true)
+          mapActionsRef.current?.flyToProperty(Number(ad.latitude), Number(ad.longitude), ad.title)
+        }
+        fly()
+        // La map n'est pas toujours prête au premier appel → retry
+        retry = setTimeout(fly, 900)
+      } catch {}
+    })()
+    return () => {
+      cancelled = true
+      if (retry) clearTimeout(retry)
+    }
+  }, [targetAdId])
 
   // Quand on clique sur un marqueur de la map → affiche l'overlay card (style Yango)
   // et on ne garde QUE ce marqueur (les autres badges disparaissent).

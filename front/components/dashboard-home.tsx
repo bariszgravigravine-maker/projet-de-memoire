@@ -550,12 +550,22 @@ export function DashboardHome() {
               )}
 
               {/* CTA */}
-              <button
-                onClick={() => router.push(`/annonce/${selected.ad_id || selected.id}`)}
-                className="w-full bg-foreground text-background font-semibold text-[12px] py-3 rounded-full hover:bg-foreground/90 transition-opacity"
-              >
-                Voir l'annonce complète
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => router.push(`/annonce/${selected.ad_id || selected.id}`)}
+                  className="flex-1 bg-foreground text-background font-semibold text-[12px] py-3 rounded-full hover:bg-foreground/90 transition-opacity"
+                >
+                  Voir l'annonce complète
+                </button>
+                <button
+                  onClick={() => router.push(`/dashboard/search?ad_id=${selected.ad_id || selected.id}`)}
+                  className="px-4 border border-border rounded-full flex items-center gap-1.5 text-[11px] font-semibold text-foreground hover:bg-muted transition-colors"
+                  title="Localiser ce bien sur la carte"
+                >
+                  <MapPin size={13} />
+                  Carte
+                </button>
+              </div>
             </div>
           </div>
         )}
