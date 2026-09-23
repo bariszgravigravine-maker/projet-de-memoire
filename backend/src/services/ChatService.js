@@ -169,6 +169,15 @@ export const ChatService = {
     };
     if (global.io) {
       global.io.to(`user:${recipientId}`).emit('call:incoming', payload);
+      // Destinataire hors ligne → l'event temps réel part dans le vide :
+      // on persiste une notification "appel manqué" consultable au retour.
+      if (!global.onlineUsers?.has(recipientId)) {
+        NotificationService.create({
+          recipientId,
+          type: 'APPEL_MANQUE',
+          content: `Appel ${payload.video ? 'vidéo' : 'audio'} manqué de ${payload.callerName}.`,
+        }).catch(() => {});
+      }
     }
     return { token, url: config.livekit.url, room: payload.room };
   },
