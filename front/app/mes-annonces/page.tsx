@@ -3,9 +3,16 @@
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
+import dynamic from "next/dynamic"
 import { ArrowLeft, Plus, Trash2, Eye, Home, Loader2, Heart, Users } from "lucide-react"
 import { listMyAds, deleteAd } from "@/lib/api"
 import { Skeleton } from "@/components/skeleton"
+
+// three.js n'est pas SSR-safe : chargement client uniquement
+const AdsStats3D = dynamic(
+  () => import("@/components/ads-stats-3d").then((m) => m.AdsStats3D),
+  { ssr: false, loading: () => <div className="h-[400px] rounded-2xl bg-stone-950 animate-pulse" /> }
+)
 
 const FALLBACK_IMAGES = [
   "/images/house-1.jpg", "/images/house-2.jpg", "/images/house-3.jpg",
@@ -94,6 +101,21 @@ export default function MesAnnoncesPage() {
               </p>
               <p className="text-[11px] text-muted-foreground">Likes reçus</p>
             </div>
+          </div>
+        )}
+
+        {/* Graphe 3D : X = annonces · Y = valeurs · Z = vues/visiteurs/likes */}
+        {!loading && !error && ads.length > 0 && (
+          <div className="mb-6">
+            <AdsStats3D
+              stats={ads.map((a) => ({
+                id: a.id,
+                title: a.title,
+                views: a.view_count || 0,
+                viewers: a.unique_viewers || 0,
+                likes: a.likes_count || 0,
+              }))}
+            />
           </div>
         )}
         {loading && (

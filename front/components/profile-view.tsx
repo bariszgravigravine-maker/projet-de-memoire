@@ -158,6 +158,9 @@ export function ProfileView() {
         firstName: form.first_name,
         lastName: form.last_name,
         phone: form.phone,
+        // Photo choisie via "Changer la photo" : base64 → Cloudinary côté API.
+        // Sans ce champ la photo n'était jamais persistée.
+        profilePhoto: profileImage?.startsWith("data:") ? profileImage : undefined,
       })
       await updatePreferences({
         preferredTypes: form.preferred_types,
