@@ -7,11 +7,21 @@ export interface BrowserGeoPosition {
 interface PrecisePositionOptions {
   timeoutMs?: number
   desiredAccuracyM?: number
+  onUpdate?: (position: BrowserGeoPosition) => void
+}
+
+function toBrowserPosition(pos: GeolocationPosition): BrowserGeoPosition {
+  return {
+    lat: pos.coords.latitude,
+    lon: pos.coords.longitude,
+    accuracy: pos.coords.accuracy ?? null,
+  }
 }
 
 export function getPreciseBrowserPosition({
   timeoutMs = 12000,
   desiredAccuracyM = 75,
+  onUpdate,
 }: PrecisePositionOptions = {}) {
   return new Promise<BrowserGeoPosition>((resolve, reject) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -22,6 +32,11 @@ export function getPreciseBrowserPosition({
     let best: GeolocationPosition | null = null
     let watchId: number | null = null
     let settled = false
+    let fallbackStarted = false
+
+    const emitBest = () => {
+      if (best) onUpdate?.(toBrowserPosition(best))
+    }
 
     const cleanup = () => {
       if (watchId != null) navigator.geolocation.clearWatch(watchId)
@@ -36,19 +51,32 @@ export function getPreciseBrowserPosition({
         reject(new Error("Position indisponible"))
         return
       }
-      resolve({
-        lat: best.coords.latitude,
-        lon: best.coords.longitude,
-        accuracy: best.coords.accuracy ?? null,
-      })
+      resolve(toBrowserPosition(best))
     }
 
     const fail = (error: GeolocationPositionError) => {
+      if (settled) return
       if (best) {
         finish()
         return
       }
-      if (settled) return
+      if (!fallbackStarted) {
+        fallbackStarted = true
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            best = pos
+            emitBest()
+            finish()
+          },
+          fail,
+          {
+            enableHighAccuracy: false,
+            timeout: Math.min(6000, timeoutMs),
+            maximumAge: 30000,
+          }
+        )
+        return
+      }
       settled = true
       cleanup()
       reject(error)
@@ -56,17 +84,22 @@ export function getPreciseBrowserPosition({
 
     const timer = window.setTimeout(finish, timeoutMs)
 
-    watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const accuracy = pos.coords.accuracy ?? Number.POSITIVE_INFINITY
-        if (!best || accuracy < (best.coords.accuracy ?? Number.POSITIVE_INFINITY)) {
-          best = pos
-        }
-        if (accuracy <= desiredAccuracyM) finish()
-      },
-      fail,
-      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 0 }
-    )
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const accuracy = pos.coords.accuracy ?? Number.POSITIVE_INFINITY
+          if (!best || accuracy < (best.coords.accuracy ?? Number.POSITIVE_INFINITY)) {
+            best = pos
+            emitBest()
+          }
+          if (accuracy <= desiredAccuracyM) finish()
+        },
+        fail,
+        { enableHighAccuracy: true, timeout: Math.min(6000, timeoutMs), maximumAge: 0 }
+      )
+    } catch (error) {
+      fail(error as GeolocationPositionError)
+    }
   })
 }
 

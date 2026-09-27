@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from "react"
 import * as maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
-import { formatAccuracyM, getPreciseBrowserPosition } from "@/lib/geolocation"
+import { formatAccuracyM, getPreciseBrowserPosition, type BrowserGeoPosition } from "@/lib/geolocation"
 
 // Contournement d'un bug de Turbopack (bundler de Next.js) qui empêche le
 // Web Worker de maplibre-gl de se charger correctement (imports internes
@@ -452,15 +452,20 @@ export function Property3DMap({ properties, onMarkerClick, destination, onCloseR
   // Récupère la position de l'utilisateur dès que possible
   useEffect(() => {
     let cancelled = false
-    getPreciseBrowserPosition({ timeoutMs: 15000, desiredAccuracyM: 80 })
-      .then((pos) => {
-        if (cancelled) return
-        userPosRef.current = [pos.lon, pos.lat]
-        userAccuracyRef.current = pos.accuracy
-        const map = mapRef.current
-        if (map?.isStyleLoaded()) showUserMarker()
-        else map?.once("load", () => showUserMarker())
-      })
+    const applyPosition = (pos: BrowserGeoPosition) => {
+      if (cancelled) return
+      userPosRef.current = [pos.lon, pos.lat]
+      userAccuracyRef.current = pos.accuracy
+      const map = mapRef.current
+      if (map?.isStyleLoaded()) showUserMarker()
+      else if (map) map.once("load", () => showUserMarker())
+    }
+    getPreciseBrowserPosition({
+      timeoutMs: 15000,
+      desiredAccuracyM: 80,
+      onUpdate: applyPosition,
+    })
+      .then(applyPosition)
       .catch(() => {})
     return () => { cancelled = true }
   }, [showUserMarker])
