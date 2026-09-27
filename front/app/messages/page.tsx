@@ -20,6 +20,7 @@ type Message = {
   attachment_url?: string
   attachment_type?: string
   attachment_name?: string
+  senderPhoto?: string
 }
 
 type Conversation = {
@@ -95,6 +96,7 @@ function MessagesContent() {
   const [error, setError] = useState<string | null>(null)
   const [showList, setShowList] = useState(true)
   const [unreadTotal, setUnreadTotal] = useState(0)
+  const [myPhoto, setMyPhoto] = useState<string | null>(null)
   const { socket, setUnreadMessages, onlineUsers, startCall } = useRealtime()
 
   // Recherche d'utilisateurs (nouvelle conversation — même sans annonce publiée)
@@ -106,6 +108,10 @@ function MessagesContent() {
   // Appels LiveKit : gérés globalement dans RealtimeProvider (modale + overlay
   // sur toutes les pages — plus de listener local ici).
   const isOnline = useCallback((userId?: string) => !!userId && onlineUsers.includes(userId), [onlineUsers])
+
+  useEffect(() => {
+    setMyPhoto(getUser()?.profile_photo_url || null)
+  }, [])
 
   const refreshUnread = useCallback(async () => {
     try {
@@ -164,6 +170,7 @@ function MessagesContent() {
         attachment_url: m.attachment_url,
         attachment_type: m.attachment_type,
         attachment_name: m.attachment_name,
+        senderPhoto: m.sender_photo_url || m.sender_photo || null,
       }))
       setMessages(mapped)
       // Le backend marque les messages reçus comme lus : on recalcule le compteur
@@ -262,6 +269,7 @@ function MessagesContent() {
       time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
       attachment_url: imageData,
       attachment_type: imageData ? "image" : undefined,
+      senderPhoto: myPhoto || undefined,
     }
     setMessages((prev) => [...prev, tempMsg])
     try {
@@ -280,6 +288,7 @@ function MessagesContent() {
                 attachment_url: m.attachment_url,
                 attachment_type: m.attachment_type,
                 attachment_name: m.attachment_name,
+                senderPhoto: m.sender_photo_url || tempMsg.senderPhoto,
               }
             : msg
         ))
@@ -292,7 +301,7 @@ function MessagesContent() {
     } finally {
       setSending(false)
     }
-  }, [selectedId, fetchMessages, fetchConversations])
+  }, [selectedId, fetchMessages, fetchConversations, myPhoto])
 
   const selected = conversations.find((c) => c.id === selectedId)
 
@@ -541,11 +550,19 @@ function MessagesContent() {
                 >
                   <div
                     className={cn(
-                      "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                      "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden",
                       msg.role === "me" ? "bg-foreground text-background" : "bg-stone-200 text-foreground"
                     )}
                   >
-                    {msg.role === "me" ? "M" : getInitials(selected.name)[0]}
+                    {msg.senderPhoto || (msg.role === "me" ? myPhoto : selected.photo) ? (
+                      <img
+                        src={msg.senderPhoto || (msg.role === "me" ? myPhoto! : selected.photo!)}
+                        alt={msg.role === "me" ? "Ma photo de profil" : selected.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      msg.role === "me" ? "M" : getInitials(selected.name)[0]
+                    )}
                   </div>
 
                   <div

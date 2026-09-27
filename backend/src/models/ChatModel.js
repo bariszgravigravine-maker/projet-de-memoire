@@ -69,7 +69,14 @@ export const MessageModel = {
   },
 
   async findByConversation(conversationId) {
-    return query('SELECT * FROM messages WHERE conversation_id = $1 ORDER BY sent_at ASC', [conversationId]);
+    return query(
+      `SELECT m.*, u.profile_photo_url AS sender_photo_url
+       FROM messages m
+       LEFT JOIN users u ON u.id = m.sender_id
+       WHERE m.conversation_id = $1
+       ORDER BY m.sent_at ASC`,
+      [conversationId]
+    );
   },
 
   async markAsRead(conversationId, readerId) {
