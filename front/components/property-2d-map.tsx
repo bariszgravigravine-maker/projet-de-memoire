@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from "react"
 import * as maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
+import { LocateFixed } from "lucide-react"
 import { formatAccuracyM, getPreciseBrowserPosition, type BrowserGeoPosition } from "@/lib/geolocation"
 
 // Contournement d'un bug de Turbopack (bundler de Next.js) qui empêche le
@@ -76,6 +77,10 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
   const [mapReady, setMapReady] = useState(false)
   const [routeInfo, setRouteInfo] = useState<{ km: number; min: number } | null>(null)
   const [routeLoading, setRouteLoading] = useState(false)
+  const [geoLocating, setGeoLocating] = useState(false)
+  const [geoError, setGeoError] = useState<string | null>(null)
+  const geoStartedRef = useRef(false)
+  const autoCenteredOnUserRef = useRef(false)
   // Quand true, le prochain updateMarkers ne re-fittera pas les bounds (zone search)
   const suppressNextAutoFitRef = useRef(false)
   // Signature du jeu de biens affichés (ids+prix) : permet de sauter la
@@ -328,6 +333,47 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
     else map?.once("load", () => showUserMarker())
   }, [showUserMarker])
 
+  const locateUser = useCallback((forceCenter = false) => {
+    setGeoLocating(true)
+    const applyPosition = (pos: BrowserGeoPosition) => {
+      setGeoError(null)
+      userPosRef.current = [pos.lon, pos.lat]
+      userAccuracyRef.current = pos.accuracy
+
+      const renderPosition = () => {
+        showUserMarker()
+        const map = mapRef.current
+        if (!map) return
+        const point: [number, number] = [pos.lon, pos.lat]
+        const shouldCenter = forceCenter || (!autoCenteredOnUserRef.current && !map.getBounds().contains(point))
+        if (shouldCenter) {
+          autoCenteredOnUserRef.current = true
+          map.flyTo({
+            center: point,
+            zoom: Math.max(map.getZoom(), 14),
+            duration: 900,
+            essential: true,
+          })
+        } else {
+          autoCenteredOnUserRef.current = true
+        }
+      }
+
+      const map = mapRef.current
+      if (map?.isStyleLoaded()) renderPosition()
+      else if (map) map.once("load", renderPosition)
+    }
+
+    return getPreciseBrowserPosition({
+      timeoutMs: 15000,
+      desiredAccuracyM: 80,
+      onUpdate: applyPosition,
+    })
+      .then(applyPosition)
+      .catch(() => setGeoError("Position indisponible — autorisez la localisation"))
+      .finally(() => setGeoLocating(false))
+  }, [showUserMarker])
+
   // Expose flyTo + autoFit control to parent via onMapActions callback
   useEffect(() => {
     if (onMapActions) {
@@ -348,24 +394,10 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
 
   // Récupère la position de l'utilisateur dès que possible
   useEffect(() => {
-    let cancelled = false
-    const applyPosition = (pos: BrowserGeoPosition) => {
-      if (cancelled) return
-      userPosRef.current = [pos.lon, pos.lat]
-      userAccuracyRef.current = pos.accuracy
-      const map = mapRef.current
-      if (map?.isStyleLoaded()) showUserMarker()
-      else if (map) map.once("load", () => showUserMarker())
-    }
-    getPreciseBrowserPosition({
-      timeoutMs: 15000,
-      desiredAccuracyM: 80,
-      onUpdate: applyPosition,
-    })
-      .then(applyPosition)
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [showUserMarker])
+    if (geoStartedRef.current) return
+    geoStartedRef.current = true
+    void locateUser(false)
+  }, [locateUser])
 
   // ── Itinéraire : tracé + flèches de direction vers le bien sélectionné ──
   const clearRoute = useCallback(() => {
@@ -672,6 +704,23 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
           background: "#e5e7eb",
         }}
       />
+
+      <button
+        type="button"
+        onClick={() => void locateUser(true)}
+        disabled={geoLocating}
+        className="absolute bottom-5 right-4 z-20 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-2 text-xs font-semibold text-stone-700 shadow-lg backdrop-blur transition-colors hover:bg-white disabled:opacity-60"
+        title="Centrer la carte sur ma position"
+      >
+        <LocateFixed className="w-4 h-4" />
+        {geoLocating ? "Localisation..." : "Ma position"}
+      </button>
+
+      {geoError && (
+        <div className="absolute bottom-5 left-4 z-20 rounded-full bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 shadow-lg border border-amber-200">
+          {geoError}
+        </div>
+      )}
 
       {mapError && (
         <div style={{
