@@ -48,6 +48,8 @@ export const PropertyModel = {
     const conditions = [`a.status = 'ACTIVE'`];
     const params = [];
     let i = 1;
+    let distanceSelect = 'NULL AS "distanceKm"';
+    let hasDistance = false;
 
     // Bounding box
     if (c.latMin != null && c.latMax != null) {
@@ -59,13 +61,26 @@ export const PropertyModel = {
       params.push(c.lonMin, c.lonMax);
     }
 
-    // Rayon (formule de Haversine simplifiée via approximation)
-    if (c.centerLat != null && c.centerLon != null && c.radius != null) {
-      // Approximation: 1 degré ~ 111 km
-      const deg = c.radius / 111;
+    // Rayon : bounding box rapide puis filtre Haversine exact.
+    if (c.centerLat != null && c.centerLon != null && c.radius != null && c.radius > 0) {
+      const latDeg = c.radius / 111;
+      const lonDeg = c.radius / (111 * Math.max(0.01, Math.cos((Math.abs(c.centerLat) * Math.PI) / 180)));
       conditions.push(`p.latitude BETWEEN $${i++} AND $${i++}`);
       conditions.push(`p.longitude BETWEEN $${i++} AND $${i++}`);
-      params.push(c.centerLat - deg, c.centerLat + deg, c.centerLon - deg, c.centerLon + deg);
+      params.push(c.centerLat - latDeg, c.centerLat + latDeg, c.centerLon - lonDeg, c.centerLon + lonDeg);
+
+      const latParam = i++;
+      const lonParam = i++;
+      const radiusParam = i++;
+      const distanceExpr = `6371 * 2 * ASIN(SQRT(GREATEST(0, LEAST(1,
+        POWER(SIN(RADIANS(p.latitude - $${latParam}) / 2), 2) +
+        COS(RADIANS($${latParam})) * COS(RADIANS(p.latitude)) *
+        POWER(SIN(RADIANS(p.longitude - $${lonParam}) / 2), 2)
+      ))))`;
+      conditions.push(`${distanceExpr} <= $${radiusParam}`);
+      params.push(c.centerLat, c.centerLon, c.radius);
+      distanceSelect = `${distanceExpr} AS "distanceKm"`;
+      hasDistance = true;
     }
 
     if (c.type) {
@@ -117,15 +132,17 @@ export const PropertyModel = {
       conditions.push(`NOT EXISTS (SELECT 1 FROM property_preferences pp3 WHERE pp3.property_id = p.id)`);
     }
 
-    let orderBy = 'a.published_at DESC';
+    let orderBy = hasDistance ? '"distanceKm" ASC' : 'a.published_at DESC';
     if (c.sortBy === 'price_asc') orderBy = 'a.price ASC';
     else if (c.sortBy === 'price_desc') orderBy = 'a.price DESC';
     else if (c.sortBy === 'recent') orderBy = 'a.published_at DESC';
+    else if (c.sortBy === 'distance' && hasDistance) orderBy = '"distanceKm" ASC';
 
     const sql = `
       SELECT a.id AS ad_id, a.title, a.description, a.price, a.status, a.published_at, a.view_count,
              p.id AS property_id, p.property_type, p.area, p.bedrooms, p.bathrooms, p.address, p.district, p.city,
              p.latitude, p.longitude,
+             ${distanceSelect},
              u.id AS owner_id, u.first_name AS owner_first_name, u.last_name AS owner_last_name, u.phone AS owner_phone,
              COALESCE(
                (SELECT json_agg(json_build_object('id', ph.id, 'url', ph.url, 'display_order', ph.display_order) ORDER BY ph.display_order)

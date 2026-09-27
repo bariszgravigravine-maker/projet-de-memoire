@@ -37,16 +37,13 @@ export const AdService = {
     // Géocodage automatique si latitude/longitude non fournies
     let lat = latitude;
     let lon = longitude;
-    if ((lat == null || lon == null) && address) {
-      const geo = await GeocodingService.geocode(`${address} ${district || ''} ${city}`);
+    if ((lat == null || lon == null) && (address || district || city)) {
+      const geo = await GeocodingService.geocode(`${address || ''} ${district || ''} ${city}`);
       if (geo) {
         lat = geo.latitude;
         lon = geo.longitude;
       }
     }
-    // Fallback: centre du Cameroun si toujours rien
-    if (lat == null) lat = 3.8667;
-    if (lon == null) lon = 11.5167;
 
     const property = await PropertyModel.create({
       ownerId,

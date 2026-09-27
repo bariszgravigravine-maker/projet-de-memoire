@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useCallback } from "react"
+import { useEffect, useRef, useCallback, useState } from "react"
 import * as maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
 import { LocateFixed } from "lucide-react"
+import { formatAccuracyM, getPreciseBrowserPosition } from "@/lib/geolocation"
 
 // Même contournement Turbopack que property-2d-map / property-3d-map :
 // sans worker vendorisé, aucune tuile ne s'affiche.
@@ -49,6 +50,8 @@ export function LocationPickerMap({ city, onPick, pin }: LocationPickerMapProps)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markerRef = useRef<maplibregl.Marker | null>(null)
   const onPickRef = useRef(onPick)
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null)
+  const [gpsLoading, setGpsLoading] = useState(false)
   onPickRef.current = onPick
 
   const placePin = useCallback((lon: number, lat: number) => {
@@ -66,6 +69,7 @@ export function LocationPickerMap({ city, onPick, pin }: LocationPickerMapProps)
       // Le pin est déplaçable à la souris pour affiner la position
       markerRef.current.on("dragend", () => {
         const p = markerRef.current!.getLngLat()
+        setGpsAccuracy(null)
         onPickRef.current(p.lat, p.lng)
       })
     } else {
@@ -95,6 +99,7 @@ export function LocationPickerMap({ city, onPick, pin }: LocationPickerMapProps)
     map.addControl(new maplibregl.NavigationControl(), "top-right")
 
     map.on("click", (e) => {
+      setGpsAccuracy(null)
       placePin(e.lngLat.lng, e.lngLat.lat)
       onPickRef.current(e.lngLat.lat, e.lngLat.lng)
     })
@@ -119,24 +124,23 @@ export function LocationPickerMap({ city, onPick, pin }: LocationPickerMapProps)
   // positionne seule, l'utilisateur n'a rien à chercher à la main.
   useEffect(() => {
     if (!pin) return
+    setGpsAccuracy(null)
     placePin(pin.lon, pin.lat)
     mapRef.current?.flyTo({ center: [pin.lon, pin.lat], zoom: 16, duration: 900 })
   }, [pin, placePin])
 
   // Bouton "Ma position" : pose le pin sur la position GPS de l'utilisateur
   const locateMe = useCallback(() => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lon = pos.coords.longitude
-        const lat = pos.coords.latitude
-        placePin(lon, lat)
-        mapRef.current?.flyTo({ center: [lon, lat], zoom: 16, duration: 900 })
-        onPickRef.current(lat, lon)
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-    )
+    setGpsLoading(true)
+    getPreciseBrowserPosition({ timeoutMs: 15000, desiredAccuracyM: 60 })
+      .then((pos) => {
+        setGpsAccuracy(pos.accuracy)
+        placePin(pos.lon, pos.lat)
+        mapRef.current?.flyTo({ center: [pos.lon, pos.lat], zoom: 16, duration: 900 })
+        onPickRef.current(pos.lat, pos.lon)
+      })
+      .catch(() => setGpsAccuracy(null))
+      .finally(() => setGpsLoading(false))
   }, [placePin])
 
   return (
@@ -146,14 +150,20 @@ export function LocationPickerMap({ city, onPick, pin }: LocationPickerMapProps)
         className="w-full rounded-xl border border-border overflow-hidden"
         style={{ height: "260px" }}
       />
+      {gpsAccuracy != null && (
+        <div className="absolute bottom-3 left-3 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-stone-700 shadow-lg">
+          Précision {formatAccuracyM(gpsAccuracy)}
+        </div>
+      )}
       <button
         type="button"
         onClick={locateMe}
-        className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-white/95 backdrop-blur rounded-full px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-lg hover:bg-white transition-colors"
+        disabled={gpsLoading}
+        className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-white/95 backdrop-blur rounded-full px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-lg hover:bg-white disabled:opacity-60 transition-colors"
         title="Poser le pin sur ma position GPS"
       >
         <LocateFixed className="w-3.5 h-3.5" />
-        Ma position
+        {gpsLoading ? "Localisation..." : "Ma position"}
       </button>
     </div>
   )

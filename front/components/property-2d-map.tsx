@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from "react"
 import * as maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
+import { formatAccuracyM, getPreciseBrowserPosition } from "@/lib/geolocation"
 
 // Contournement d'un bug de Turbopack (bundler de Next.js) qui empêche le
 // Web Worker de maplibre-gl de se charger correctement (imports internes
@@ -48,7 +49,7 @@ interface Property2DMapProps {
     flyToProperty: (lat: number, lon: number, title?: string) => void
     flyToZone: (lat: number, lon: number, radiusKm?: number) => void
     getUserPosition: () => [number, number] | null
-    setUserPosition: (lon: number, lat: number) => void
+    setUserPosition: (lon: number, lat: number, accuracy?: number | null) => void
     setSuppressAutoFit: (v: boolean) => void
   }) => void
   /** Appelé quand l'itinéraire est calculé (km, durée) ou annulé */
@@ -67,6 +68,8 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
   const markersRef = useRef<maplibregl.Marker[]>([])
   const userMarkerRef = useRef<maplibregl.Marker | null>(null)
   const userPosRef = useRef<[number, number] | null>(null)
+  const userAccuracyRef = useRef<number | null>(null)
+  const routeOriginMarkerRef = useRef<maplibregl.Marker | null>(null)
   const destMarkerRef = useRef<maplibregl.Marker | null>(null)
   const placeMarkerRef = useRef<maplibregl.Marker | null>(null)
   const [mapError, setMapError] = useState<string | null>(null)
@@ -231,13 +234,18 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
   }, [])
 
   // ── Ma position : point bleu pulsant sur la carte ──
-  // posOverride : affiche le repère à une position donnée sans modifier
-  // userPosRef (ex: origine d'itinéraire = centre de la carte quand la
-  // géolocalisation est refusée ou indisponible).
-  const showUserMarker = useCallback((posOverride?: [number, number]) => {
+  const showUserMarker = useCallback((posOverride?: [number, number], accuracyOverride?: number | null) => {
     const map = mapRef.current
     const pos = posOverride ?? userPosRef.current
     if (!map || !pos) return
+
+    routeOriginMarkerRef.current?.remove()
+    routeOriginMarkerRef.current = null
+
+    const accuracy = accuracyOverride ?? userAccuracyRef.current
+    const accuracyLabel = formatAccuracyM(accuracy)
+    const title = accuracyLabel ? `Ma position (${accuracyLabel})` : "Ma position"
+
     if (!userMarkerRef.current) {
       // Injecte l'animation CSS une seule fois dans le <head>
       if (!document.getElementById("nestfind-map-styles")) {
@@ -255,7 +263,7 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
 
       const wrapper = document.createElement("div")
       wrapper.style.cssText = "width: 22px; height: 22px; position: relative; pointer-events: none;"
-      wrapper.title = "Ma position"
+      wrapper.title = title
 
       // Anneau pulsant
       const pulse = document.createElement("div")
@@ -284,12 +292,37 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
         .addTo(map)
     } else {
       userMarkerRef.current.setLngLat(pos)
+      userMarkerRef.current.getElement().title = title
+    }
+  }, [])
+
+  const showRouteOriginMarker = useCallback((pos: [number, number]) => {
+    const map = mapRef.current
+    if (!map || userPosRef.current) return
+
+    if (!routeOriginMarkerRef.current) {
+      const el = document.createElement("div")
+      el.style.cssText = `
+        width: 18px;
+        height: 18px;
+        background: #78716c;
+        border: 3px solid #ffffff;
+        border-radius: 50%;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+      `
+      el.title = "Origine approximative (centre de la carte)"
+      routeOriginMarkerRef.current = new maplibregl.Marker({ element: el })
+        .setLngLat(pos)
+        .addTo(map)
+    } else {
+      routeOriginMarkerRef.current.setLngLat(pos)
     }
   }, [])
 
   // Définit la position de l'utilisateur (appelée par le parent, ex: recherche par zone)
-  const setUserPosition = useCallback((lon: number, lat: number) => {
+  const setUserPosition = useCallback((lon: number, lat: number, accuracy?: number | null) => {
     userPosRef.current = [lon, lat]
+    userAccuracyRef.current = accuracy ?? null
     const map = mapRef.current
     if (map?.isStyleLoaded()) showUserMarker()
     else map?.once("load", () => showUserMarker())
@@ -315,17 +348,18 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
 
   // Récupère la position de l'utilisateur dès que possible
   useEffect(() => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        userPosRef.current = [pos.coords.longitude, pos.coords.latitude]
+    let cancelled = false
+    getPreciseBrowserPosition({ timeoutMs: 15000, desiredAccuracyM: 80 })
+      .then((pos) => {
+        if (cancelled) return
+        userPosRef.current = [pos.lon, pos.lat]
+        userAccuracyRef.current = pos.accuracy
         const map = mapRef.current
         if (map?.isStyleLoaded()) showUserMarker()
         else map?.once("load", () => showUserMarker())
-      },
-      () => {},
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
-    )
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
   }, [showUserMarker])
 
   // ── Itinéraire : tracé + flèches de direction vers le bien sélectionné ──
@@ -336,6 +370,8 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
       if (map.getLayer(id)) map.removeLayer(id)
     }
     if (map.getSource("route")) map.removeSource("route")
+    routeOriginMarkerRef.current?.remove()
+    routeOriginMarkerRef.current = null
     setRouteInfo(null)
   }, [])
 
@@ -351,26 +387,19 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
     // Origine : position GPS si connue. Sinon on retente rapidement la
     // géoloc (elle a pu échouer au montage : permission pas encore donnée,
     // délai dépassé...), puis repli sur le centre actuel de la carte.
-    if (!userPosRef.current && typeof navigator !== "undefined" && navigator.geolocation) {
+    if (!userPosRef.current) {
       try {
-        const pos = await new Promise<GeolocationPosition>((res, rej) =>
-          navigator.geolocation.getCurrentPosition(res, rej, {
-            enableHighAccuracy: false,
-            timeout: 4000,
-            maximumAge: 60000,
-          })
-        )
-        userPosRef.current = [pos.coords.longitude, pos.coords.latitude]
+        const pos = await getPreciseBrowserPosition({ timeoutMs: 7000, desiredAccuracyM: 100 })
+        userPosRef.current = [pos.lon, pos.lat]
+        userAccuracyRef.current = pos.accuracy
       } catch {}
     }
     const origin: [number, number] = userPosRef.current ?? [
       map.getCenter().lng,
       map.getCenter().lat,
     ]
-    // Le point bleu s'affiche dans tous les cas à l'origine réellement
-    // utilisée (GPS ou centre de la carte) : sans lui, quand la géoloc est
-    // refusée/indisponible, l'utilisateur ne voit pas d'où part le tracé.
-    showUserMarker(origin)
+    if (userPosRef.current) showUserMarker()
+    else showRouteOriginMarker(origin)
     const dest: [number, number] = [dLng, dLat]
 
     setRouteLoading(true)
@@ -484,7 +513,7 @@ export function Property2DMap({ properties, onMarkerClick, destination, onCloseR
     destMarkerRef.current = new maplibregl.Marker({ element: destEl, anchor: "bottom" })
       .setLngLat(dest)
       .addTo(map)
-  }, [destination, clearRoute, onViewProperty, showUserMarker])
+  }, [destination, clearRoute, onViewProperty, showUserMarker, showRouteOriginMarker])
 
   useEffect(() => {
     const map = mapRef.current

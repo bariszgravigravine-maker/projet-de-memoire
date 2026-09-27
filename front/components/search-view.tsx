@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Search, SlidersHorizontal, MapPin, X, LayoutDashboard, Sparkles, Send, Navigation, LocateFixed, Crosshair, ChevronRight, Bed, Bath, GripHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getAds, getAdDetail, agentSearch, listPreferences } from "@/lib/api"
+import { formatAccuracyM, getPreciseBrowserPosition } from "@/lib/geolocation"
 import { Property2DMap } from "@/components/property-2d-map"
 
 const POPULAR_CITIES = ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Garoua", "Kribi", "Buea", "Limbe", "Bertoua", "Maroua", "Ngaoundéré", "Ebolowa"]
@@ -103,7 +104,7 @@ interface MapActions {
   flyToProperty: (lat: number, lon: number, title?: string) => void
   flyToZone: (lat: number, lon: number, radiusKm?: number) => void
   getUserPosition: () => [number, number] | null
-  setUserPosition: (lon: number, lat: number) => void
+  setUserPosition: (lon: number, lat: number, accuracy?: number | null) => void
   setSuppressAutoFit: (v: boolean) => void
 }
 
@@ -207,20 +208,13 @@ export function SearchView() {
     setSelectedProperty(null)
     setRouteTarget(null)
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        if (!navigator.geolocation) return reject(new Error("Geolocation non supporté"))
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        })
-      })
-      const lon = pos.coords.longitude
-      const lat = pos.coords.latitude
-      // Rayon de recherche : 2 km autour de ma position (visibilité maximale)
-      const radius = 2
-      // Affiche le point bleu de ma position sur la map
-      mapActionsRef.current?.setUserPosition(lon, lat)
+      const pos = await getPreciseBrowserPosition({ timeoutMs: 15000, desiredAccuracyM: 80 })
+      const lon = pos.lon
+      const lat = pos.lat
+      const accuracyLabel = formatAccuracyM(pos.accuracy)
+      // Rayon minimum 2 km ; si le GPS est incertain, on élargit un peu la zone.
+      const radius = Math.min(10, Math.max(2, Math.ceil((pos.accuracy ?? 0) / 1000)))
+      mapActionsRef.current?.setUserPosition(lon, lat, pos.accuracy)
       const json = await getAds({
         centerLat: lat,
         centerLon: lon,
@@ -233,7 +227,7 @@ export function SearchView() {
       setResults(data)
       setSearched(true)
       mapActionsRef.current?.flyToZone(lat, lon, radius)
-      setZoneInfo(`${data.length} bien(s) dans un rayon de ${radius} km autour de vous`)
+      setZoneInfo(`${data.length} bien(s) dans un rayon de ${radius} km autour de vous${accuracyLabel ? ` (position ${accuracyLabel})` : ""}`)
     } catch (err: any) {
       setZoneInfo(err?.message || "Impossible d'obtenir votre position. Activez la géolocalisation.")
     } finally {
