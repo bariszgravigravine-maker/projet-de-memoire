@@ -33,56 +33,41 @@ type Conversation = {
   targetUserId?: string
 }
 
-function ConversationListBackdrop() {
+function ChatPatternBackdrop() {
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute -top-16 -right-16 h-44 w-44 rounded-full bg-amber-200/40 blur-3xl" />
-      <div className="absolute top-32 -left-16 h-36 w-36 rounded-full bg-orange-100/60 blur-3xl" />
-      <div className="absolute inset-x-0 bottom-0 h-72">
-        <svg
-          viewBox="0 0 320 260"
-          preserveAspectRatio="xMidYMax slice"
-          className="h-full w-full"
-        >
-          <path
-            d="M0 92 C48 70 92 98 142 80 C196 60 250 82 320 50 L320 260 L0 260 Z"
-            fill="#fff7ed"
-          />
-          <circle cx="268" cy="64" r="28" fill="#fbbf24" opacity="0.18" />
-          <path
-            d="M0 224 C58 206 108 212 160 220 C224 230 270 214 320 206"
-            fill="none"
-            stroke="#d6d3d1"
-            strokeWidth="2"
-            strokeDasharray="5 7"
-            opacity="0.65"
-          />
-          <g opacity="0.62" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M42 178 L82 138 L122 178" fill="none" stroke="#a16207" strokeWidth="3" />
-            <path d="M54 177 V220 H110 V177" fill="#fde68a" fillOpacity="0.42" stroke="#a16207" strokeWidth="2" />
-            <rect x="75" y="190" width="15" height="30" rx="2" fill="#f59e0b" fillOpacity="0.35" />
-            <rect x="93" y="188" width="11" height="11" rx="2" fill="#fff7ed" stroke="#a16207" strokeWidth="1.5" />
-            <path d="M174 184 L206 152 L238 184" fill="none" stroke="#a16207" strokeWidth="3" />
-            <path d="M186 183 V220 H226 V183" fill="#fed7aa" fillOpacity="0.42" stroke="#a16207" strokeWidth="2" />
-            <rect x="201" y="193" width="12" height="27" rx="2" fill="#f59e0b" fillOpacity="0.32" />
-            <path d="M144 203 h34 v18 h-34 z" fill="#fbbf24" fillOpacity="0.2" />
-          </g>
-          <g opacity="0.34">
-            <path
-              d="M108 72 h58 a18 18 0 0 1 18 18 v10 a18 18 0 0 1 -18 18 h-34 l-17 16 v-16 h-7 a18 18 0 0 1 -18 -18 v-10 a18 18 0 0 1 18 -18 z"
-              fill="#fed7aa"
-            />
-            <circle cx="128" cy="95" r="4" fill="#a16207" />
-            <circle cx="146" cy="95" r="4" fill="#a16207" />
-            <circle cx="164" cy="95" r="4" fill="#a16207" />
-            <path
-              d="M216 106 h42 a15 15 0 0 1 15 15 v9 a15 15 0 0 1 -15 15 h-10 v14 l-16 -14 h-16 a15 15 0 0 1 -15 -15 v-9 a15 15 0 0 1 15 -15 z"
-              fill="#fde68a"
-            />
-            <path d="M226 130 h34" stroke="#a16207" strokeWidth="3" strokeLinecap="round" />
-          </g>
-        </svg>
-      </div>
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden bg-[#efeae2]">
+      <svg className="absolute inset-0 h-full w-full opacity-45">
+        <defs>
+          <pattern
+            id="whatsapp-doodles"
+            width="140"
+            height="140"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(-8)"
+          >
+            <g
+              fill="none"
+              stroke="#8d8578"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity="0.5"
+            >
+              <path d="M18 20h38a10 10 0 0 1 10 10v7a10 10 0 0 1-10 10H36l-11 9v-9h-7a10 10 0 0 1-10-10v-7a10 10 0 0 1 10-10z" />
+              <path d="M92 18l16 16-16 16-16-16z" />
+              <path d="M30 94c8-12 20-12 24 0-3 11-14 17-24 16-3-6-3-11 0-16z" />
+              <path d="M88 104c9 8 22 8 30 0" />
+              <path d="M68 112l8-8 8 8-8 8z" />
+              <path d="M92 60l16-14 16 14v18h-32z" />
+              <path d="M103 78v-9" />
+              <circle cx="28" cy="70" r="3" />
+              <path d="M72 62c8-8 20-8 28 0" />
+            </g>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#whatsapp-doodles)" />
+      </svg>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.55),transparent_45%)]" />
     </div>
   )
 }
@@ -327,13 +312,11 @@ function MessagesContent() {
       {/* Sidebar conversations */}
       <aside
         className={cn(
-          "relative w-full md:w-80 flex-shrink-0 border-r border-stone-200 flex flex-col z-10 overflow-hidden",
-          "bg-[linear-gradient(180deg,#ffffff_0%,#fffaf3_58%,#fff4e4_100%)]",
+          "w-full md:w-80 flex-shrink-0 bg-white border-r border-stone-200 flex flex-col z-10",
           showList ? "flex" : "hidden md:flex"
         )}
       >
-        <ConversationListBackdrop />
-        <div className="relative z-10 p-4 border-b border-stone-200 flex items-center justify-between bg-white/85 backdrop-blur-sm">
+        <div className="p-4 border-b border-stone-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
               onClick={() => router.push("/dashboard")}
@@ -352,7 +335,7 @@ function MessagesContent() {
         </div>
 
         {/* Recherche d'utilisateur : nouvelle conversation même sans annonce */}
-        <div className="relative z-10 px-4 py-3 border-b border-stone-200 bg-white/75 backdrop-blur-sm">
+        <div className="px-4 py-3 border-b border-stone-200 relative">
           <div className="flex items-center gap-2 bg-stone-100 rounded-full px-3 py-2">
             <Search className="w-4 h-4 text-stone-400 shrink-0" />
             <input
@@ -406,7 +389,7 @@ function MessagesContent() {
           )}
         </div>
 
-        <div className="relative z-10 flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto">
           {loadingConvs && (
             <div className="space-y-1">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -434,8 +417,8 @@ function MessagesContent() {
               key={conv.id}
               onClick={() => setSelectedId(conv.id)}
               className={cn(
-                "w-full flex items-center gap-3 p-4 text-left transition-colors border-b border-stone-100 bg-white/80 backdrop-blur-sm hover:bg-white/95",
-                selectedId === conv.id && "bg-amber-50/95 hover:bg-amber-100/95"
+                "w-full flex items-center gap-3 p-4 text-left transition-colors hover:bg-stone-50 border-b border-stone-100",
+                selectedId === conv.id && "bg-stone-100"
               )}
             >
               <div className="relative">
@@ -517,7 +500,9 @@ function MessagesContent() {
             </header>
 
             {/* Messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-6 py-6 pb-32 space-y-4">
+            <div className="relative flex-1 overflow-hidden">
+              <ChatPatternBackdrop />
+              <div ref={scrollRef} className="relative z-10 h-full overflow-y-auto px-4 md:px-6 py-6 pb-32 space-y-4">
               {loadingMsgs && (
                 <div className="space-y-4">
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -598,16 +583,20 @@ function MessagesContent() {
                 </div>
                 )
               ))}
+              </div>
             </div>
 
             {/* Composer */}
             <UserChatComposer onSend={handleSend} disabled={sending} />
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
-            <Send size={48} className="text-stone-300 mb-3" />
-            <p className="text-lg font-semibold text-stone-600">Sélectionnez une conversation</p>
-            <p className="text-sm text-stone-400 mt-1">Choisissez une conversation dans la liste</p>
+          <div className="relative flex-1 overflow-hidden">
+            <ChatPatternBackdrop />
+            <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-4 h-full">
+              <Send size={48} className="text-stone-300 mb-3" />
+              <p className="text-lg font-semibold text-stone-600">Sélectionnez une conversation</p>
+              <p className="text-sm text-stone-400 mt-1">Choisissez une conversation dans la liste</p>
+            </div>
           </div>
         )}
       </main>
