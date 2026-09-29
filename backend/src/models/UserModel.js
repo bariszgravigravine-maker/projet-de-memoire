@@ -9,14 +9,14 @@ export const UserModel = {
   /**
    * Crée un nouvel utilisateur.
    */
-  async create({ email, password, firstName, lastName, phone, role = 'USER', budgetMax = 0, preferredTypes = [], preferredZones = [] }) {
+  async create({ email, password, firstName, lastName, phone, role = 'USER', budgetMax = 0, preferredTypes = [], preferredZones = [], usageProfiles = [] }) {
     const hash = await bcrypt.hash(password, 10);
     const sql = `
-      INSERT INTO users (email, password_hash, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, created_at
+      INSERT INTO users (email, password_hash, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, usage_profiles)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, usage_profiles, created_at
     `;
-    return queryOne(sql, [email, hash, firstName, lastName, phone, role, budgetMax, preferredTypes, preferredZones]);
+    return queryOne(sql, [email, hash, firstName, lastName, phone, role, budgetMax, preferredTypes, preferredZones, usageProfiles]);
   },
 
   async findByEmail(email) {
@@ -25,7 +25,7 @@ export const UserModel = {
 
   async findById(id) {
     return queryOne(
-      'SELECT id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, preferred_amenities, profile_photo_url, bio, created_at FROM users WHERE id = $1',
+      'SELECT id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, preferred_amenities, usage_profiles, profile_photo_url, bio, created_at FROM users WHERE id = $1',
       [id]
     );
   },
@@ -39,12 +39,12 @@ export const UserModel = {
     return bcrypt.compare(plain, hash);
   },
 
-  async updateProfile(id, { firstName, lastName, phone, profilePhotoUrl }) {
+  async updateProfile(id, { firstName, lastName, phone, profilePhotoUrl, usageProfiles }) {
     return queryOne(
-      `UPDATE users SET first_name = COALESCE($2, first_name), last_name = COALESCE($3, last_name), phone = COALESCE($4, phone), profile_photo_url = COALESCE($5, profile_photo_url)
+      `UPDATE users SET first_name = COALESCE($2, first_name), last_name = COALESCE($3, last_name), phone = COALESCE($4, phone), profile_photo_url = COALESCE($5, profile_photo_url), usage_profiles = COALESCE($6, usage_profiles)
        WHERE id = $1
-       RETURNING id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, preferred_amenities, profile_photo_url`,
-      [id, firstName, lastName, phone, profilePhotoUrl]
+       RETURNING id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, preferred_amenities, usage_profiles, profile_photo_url`,
+      [id, firstName, lastName, phone, profilePhotoUrl, usageProfiles]
     );
   },
 
@@ -52,7 +52,7 @@ export const UserModel = {
     return queryOne(
       `UPDATE users SET preferred_types = $2, preferred_zones = $3, preferred_amenities = COALESCE($4, preferred_amenities), budget_max = $5
        WHERE id = $1
-       RETURNING id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, preferred_amenities`,
+       RETURNING id, email, first_name, last_name, phone, role, budget_max, preferred_types, preferred_zones, preferred_amenities, usage_profiles`,
       [id, preferredTypes || [], preferredZones || [], preferredAmenities || null, budgetMax || 0]
     );
   },
@@ -65,7 +65,7 @@ export const UserModel = {
 
   async listAll({ limit = 50, offset = 0 } = {}) {
     return query(
-      'SELECT id, email, first_name, last_name, phone, role, created_at, active_ads_count FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+      'SELECT id, email, first_name, last_name, phone, role, usage_profiles, created_at, active_ads_count FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2',
       [limit, offset]
     );
   },
@@ -77,7 +77,7 @@ export const UserModel = {
    */
   async searchUsers(q, { limit = 15 } = {}) {
     return query(
-      `SELECT id, first_name, last_name, profile_photo_url, role
+      `SELECT id, first_name, last_name, profile_photo_url, role, usage_profiles
        FROM users
        WHERE status = 'ACTIF' AND (
          unaccent(COALESCE(first_name, '')) ILIKE unaccent($1) OR

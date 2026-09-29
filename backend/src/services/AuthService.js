@@ -7,7 +7,7 @@ import CloudinaryService from './CloudinaryService.js';
  * Service d'authentification — inscription, connexion, profil, préférences.
  */
 export const AuthService = {
-  async register({ email, password, firstName, lastName, phone, role, budgetMax, preferredTypes, preferredZones }) {
+  async register({ email, password, firstName, lastName, phone, role, budgetMax, preferredTypes, preferredZones, usageProfiles }) {
     if (!email || !password) {
       const err = new Error('Email et mot de passe obligatoires');
       err.status = 400;
@@ -36,6 +36,7 @@ export const AuthService = {
       budgetMax,
       preferredTypes,
       preferredZones,
+      usageProfiles,
     });
 
     const token = this.generateToken(user);

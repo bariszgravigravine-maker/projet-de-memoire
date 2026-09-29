@@ -1,0 +1,7 @@
+Profil d'usage utilisateur : chercheur / hote / bailleur
+
+- Nouveau champ users.usage_profiles (TEXT[]) : CHERCHEUR | HOTE | BAILLEUR,
+  multi-selection possible, declare a l'onboarding et a l'inscription
+- Onboarding : premiere etape « Que venez-vous faire sur NestFind ? »
+- Affichage : badges dans le profil + libelle dans la recherche d'utilisateurs
+- Swagger : usageProfiles documente sur /register et le schema User

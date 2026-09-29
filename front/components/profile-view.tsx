@@ -32,7 +32,8 @@ const MOCK_USER = {
   active_ads_count: 12,
   total_views: 248,
   total_contacts: 36,
-  bio: "Agent immobilier spécialisé dans la location et la vente de biens au Cameroun. À votre écoute pour trouver le logement idéal.",
+  usage_profiles: ["CHERCHEUR", "BAILLEUR"],
+  bio: "Propriétaire et chercheur de biens sur le marché immobilier camerounais.",
   created_at: "2025-09-01T10:30:00Z",
 }
 
@@ -44,6 +45,12 @@ const ROLE_LABELS: Record<string, string> = {
 const ROLE_ICONS: Record<string, typeof User> = {
   USER: User,
   ADMIN: BadgeCheck,
+}
+
+const USAGE_LABELS: Record<string, string> = {
+  CHERCHEUR: "Chercheur",
+  HOTE: "Hôte",
+  BAILLEUR: "Bailleur",
 }
 
 const ALL_PROPERTY_TYPES = [
@@ -342,6 +349,11 @@ export function ProfileView() {
                     <RoleIcon className="w-4 h-4" />
                     {ROLE_LABELS[user.role]}
                   </div>
+                  {(user.usage_profiles || []).map((p: string) => (
+                    <div key={p} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-secondary text-foreground border border-border">
+                      {USAGE_LABELS[p] || p}
+                    </div>
+                  ))}
                   <div className={cn(
                     "px-3 py-1.5 rounded-full text-xs font-semibold border",
                     user.status === "ACTIF" && "bg-green-100 text-green-700 border-green-200",

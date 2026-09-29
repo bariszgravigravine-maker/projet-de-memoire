@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
   budget_max      NUMERIC(14, 2) DEFAULT 0,
   preferred_types TEXT[] DEFAULT '{}',
   preferred_zones TEXT[] DEFAULT '{}',
+  usage_profiles  TEXT[] DEFAULT '{}',  -- CHERCHEUR | HOTE | BAILLEUR (multi)
   active_ads_count INT DEFAULT 0,
   total_views     INT DEFAULT 0,
   total_contacts  INT DEFAULT 0,
@@ -38,6 +39,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Colonnes ajoutées après coup (idempotent sur bases existantes)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_amenities TEXT[] DEFAULT '{}';
+-- Profil d'usage déclaré à l'onboarding : CHERCHEUR | HOTE | BAILLEUR
+ALTER TABLE users ADD COLUMN IF NOT EXISTS usage_profiles TEXT[] DEFAULT '{}';
 
 -- --- Biens immobiliers ---
 CREATE TABLE IF NOT EXISTS properties (

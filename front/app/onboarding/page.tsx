@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { Check, ArrowRight, Home, Building2, Trees, Store, Warehouse, Briefcase, Hotel, Bath, Car, Dumbbell, Waves, Camera, User } from "lucide-react"
+import { Check, ArrowRight, Home, Building2, Trees, Store, Warehouse, Briefcase, Hotel, Bath, Car, Dumbbell, Waves, Camera, User, Search, KeyRound } from "lucide-react"
 import { NestFindLogo } from "@/components/nestfind-logo"
 import { getToken, updatePreferences, updateProfile } from "@/lib/api"
 
@@ -47,6 +47,19 @@ const AMENITIES = [
   { label: "Cuisine équipée", icon: Home },
 ]
 
+// Profils d'usage : libellé affiché → code stocké en base (users.usage_profiles)
+const USAGE_PROFILES = [
+  { label: "Je cherche un logement", icon: Search },
+  { label: "Je suis hôte", icon: Hotel },
+  { label: "Je suis bailleur", icon: KeyRound },
+]
+
+const USAGE_MAP: Record<string, string> = {
+  "Je cherche un logement": "CHERCHEUR",
+  "Je suis hôte": "HOTE",
+  "Je suis bailleur": "BAILLEUR",
+}
+
 const CITIES = [
   "Yaoundé",
   "Douala",
@@ -65,6 +78,7 @@ const CITIES = [
 export default function OnboardingPage() {
   const router = useRouter()
   const [step, setStep] = useState(0)
+  const [selectedProfiles, setSelectedProfiles] = useState<string[]>([])
   const [selectedTypes, setSelectedTypes] = useState<string[]>([])
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
   const [selectedCities, setSelectedCities] = useState<string[]>([])
@@ -77,6 +91,13 @@ export default function OnboardingPage() {
   const [photo, setPhoto] = useState<string | null>(null)
 
   const chipSteps = [
+    {
+      title: "Que venez-vous faire sur NestFind ?",
+      subtitle: "Chercheur, hôte, bailleur — sélectionnez ce qui vous correspond.",
+      items: USAGE_PROFILES,
+      selected: selectedProfiles,
+      setSelected: setSelectedProfiles,
+    },
     {
       title: "Quel type de bien recherchez-vous ?",
       subtitle: "Sélectionnez un ou plusieurs types de biens immobiliers.",
@@ -136,13 +157,15 @@ export default function OnboardingPage() {
         })
       )
     }
-    if (firstName.trim() || lastName.trim() || phone.trim() || photo) {
+    const usageProfiles = selectedProfiles.map((l) => USAGE_MAP[l]).filter(Boolean)
+    if (firstName.trim() || lastName.trim() || phone.trim() || photo || usageProfiles.length) {
       tasks.push(
         updateProfile({
           firstName: firstName.trim() || undefined,
           lastName: lastName.trim() || undefined,
           phone: phone.trim() || undefined,
           profilePhoto: photo || undefined,
+          usageProfiles: usageProfiles.length ? usageProfiles : undefined,
         })
       )
     }
