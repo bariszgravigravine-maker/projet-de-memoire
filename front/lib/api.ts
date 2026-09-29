@@ -54,6 +54,9 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   const res = await fetch(`${API_URL}${path}`, { ...options, headers })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
+    // Token expiré ou invalide : on purge les credentials locaux pour ne pas
+    // rejouer la même requête 401 (badges, profil, socket…) en boucle.
+    if (res.status === 401 && token) clearAuth()
     throw new Error(err.error || err.message || `Erreur ${res.status}`)
   }
   if (res.status === 204) return null

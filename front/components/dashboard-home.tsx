@@ -63,6 +63,7 @@ export function DashboardHome() {
   }, [activeTag, searchQuery])
 
   const fetchRecommendations = useCallback(async () => {
+    if (!getToken()) return // endpoint authentifié
     try {
       const json = await getRecommendations()
       // L'API renvoie { data: { count, recommendations } } — pas "results"
@@ -78,6 +79,7 @@ export function DashboardHome() {
 
   // Charge les préférences sauvegardées à l'onboarding pour les afficher
   useEffect(() => {
+    if (!getToken()) return
     getProfile()
       .then((json) => {
         const u = json.data || json
@@ -92,6 +94,7 @@ export function DashboardHome() {
 
   useEffect(() => {
     async function loadFavorites() {
+      if (!getToken()) return
       try {
         const json = await listFavorites()
         const favs = json.data || json || []

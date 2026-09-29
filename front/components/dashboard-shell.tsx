@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { NestFindLogo } from "@/components/nestfind-logo"
-import { countUnreadMessages, listNotifications, getUser } from "@/lib/api"
+import { countUnreadMessages, listNotifications, getUser, getToken } from "@/lib/api"
 import { useRealtime } from "@/components/realtime-provider"
 
 type NavItem = "home" | "liked" | "search" | "messages" | "profile"
@@ -62,6 +62,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     if (isSearchPage) return
     let mounted = true
     async function loadBadges() {
+      if (!getToken()) return // visiteur : pas de compteurs à charger
       try {
         const [msgRes, notifRes] = await Promise.all([
           countUnreadMessages().catch(() => ({ data: { count: 0 } })),
