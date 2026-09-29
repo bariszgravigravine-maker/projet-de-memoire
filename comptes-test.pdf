@@ -1,0 +1,84 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Length 3577 >>
+stream
+BT
+/F1 14 Tf 1 0 0 1 50 750 Tm (NestFind  Comptes de test \(base de production\)) Tj
+/F1 9 Tf 1 0 0 1 50 737 Tm () Tj
+/F1 9 Tf 1 0 0 1 50 724 Tm (Deux roles seulement : ADMIN \(plateforme\) et USER \(tous les utilisateurs\).) Tj
+/F1 9 Tf 1 0 0 1 50 711 Tm (Mot de passe : ADMIN = admin123, ex-agents = agent123, USER = user123) Tj
+/F1 9 Tf 1 0 0 1 50 698 Tm () Tj
+/F1 11 Tf 1 0 0 1 50 682 Tm (ADMIN) Tj
+/F1 9 Tf 1 0 0 1 50 669 Tm (admin@immo.cm | admin123 | Admin Systeme) Tj
+/F1 9 Tf 1 0 0 1 50 656 Tm () Tj
+/F1 11 Tf 1 0 0 1 50 640 Tm (UTILISATEURS PROPRIETAIRES - ex-agents \(mot de passe : agent123\)) Tj
+/F1 9 Tf 1 0 0 1 50 627 Tm (agent@immo.cm | Kamga Paul) Tj
+/F1 9 Tf 1 0 0 1 50 614 Tm (ndongo@immo.cm | Ndongo Marie) Tj
+/F1 9 Tf 1 0 0 1 50 601 Tm (aisha.toumba@immo.cm | Aisha Toumba) Tj
+/F1 9 Tf 1 0 0 1 50 588 Tm (sandrine.foka@immo.cm | Sandrine Foka) Tj
+/F1 9 Tf 1 0 0 1 50 575 Tm (agent.yaounde0@immo.cm | Mbarga Serge) Tj
+/F1 9 Tf 1 0 0 1 50 562 Tm (agent.douala1@immo.cm | Suzanne Laurent) Tj
+/F1 9 Tf 1 0 0 1 50 549 Tm (agent.bafoussam2@immo.cm | Moussa Samuel) Tj
+/F1 9 Tf 1 0 0 1 50 536 Tm (agent.bamenda3@immo.cm | Brice Thomas) Tj
+/F1 9 Tf 1 0 0 1 50 523 Tm (agent.garoua4@immo.cm | Paul Joseph) Tj
+/F1 9 Tf 1 0 0 1 50 510 Tm (agent.kribi5@immo.cm | Ekane Patrick) Tj
+/F1 9 Tf 1 0 0 1 50 497 Tm (agent.buea6@immo.cm | Toumba Jacques) Tj
+/F1 9 Tf 1 0 0 1 50 484 Tm (agent.limbe7@immo.cm | Foka Serge) Tj
+/F1 9 Tf 1 0 0 1 50 471 Tm (agent.bertoua8@immo.cm | Suzanne Francois) Tj
+/F1 9 Tf 1 0 0 1 50 458 Tm (agent.maroua9@immo.cm | Issa Marc) Tj
+/F1 9 Tf 1 0 0 1 50 445 Tm (agent.ngaoundere10@immo.cm | Atangana Pierre) Tj
+/F1 9 Tf 1 0 0 1 50 432 Tm (agent.ebolowa11@immo.cm | Nadege Marie) Tj
+/F1 9 Tf 1 0 0 1 50 419 Tm (agent.aristide.mbarga@immo.cm | Aristide Mbarga) Tj
+/F1 9 Tf 1 0 0 1 50 406 Tm (agent.benoit.talla@immo.cm | Benoit Talla) Tj
+/F1 9 Tf 1 0 0 1 50 393 Tm (agent.christelle.fouda@immo.cm | Christelle Fouda) Tj
+/F1 9 Tf 1 0 0 1 50 380 Tm (agent.clarisse.eyenga@immo.cm | Clarisse Eyenga) Tj
+/F1 9 Tf 1 0 0 1 50 367 Tm (agent.ghislain.nkomo@immo.cm | Ghislain Nkomo) Tj
+/F1 9 Tf 1 0 0 1 50 354 Tm (agent.mireille.abanda@immo.cm | Mireille Abanda) Tj
+/F1 9 Tf 1 0 0 1 50 341 Tm (agent.nadege.mballa@immo.cm | Nadege Mballa) Tj
+/F1 9 Tf 1 0 0 1 50 328 Tm (agent.serge.ngono@immo.cm | Serge Ngono) Tj
+/F1 9 Tf 1 0 0 1 50 315 Tm () Tj
+/F1 11 Tf 1 0 0 1 50 299 Tm (UTILISATEURS \(mot de passe : user123\)) Tj
+/F1 9 Tf 1 0 0 1 50 286 Tm (user@immo.cm | Atangana Fredy) Tj
+/F1 9 Tf 1 0 0 1 50 273 Tm (brice.ekane@immo.cm | Brice Ekane) Tj
+/F1 9 Tf 1 0 0 1 50 260 Tm (mireille.nkomo@immo.cm | Mireille Nkomo) Tj
+/F1 9 Tf 1 0 0 1 50 247 Tm (jeanpaul.biya@immo.cm | Jean-Paul Biya Jr) Tj
+/F1 9 Tf 1 0 0 1 50 234 Tm (wilfried.kamga@immo.cm | Wilfried Kamga) Tj
+/F1 9 Tf 1 0 0 1 50 221 Tm (user.aicha.bello@immo.cm | Aicha Bello) Tj
+/F1 9 Tf 1 0 0 1 50 208 Tm (user.bernadette.ayissi@immo.cm | Bernadette Ayissi) Tj
+/F1 9 Tf 1 0 0 1 50 195 Tm (user.bertrand.kamdem@immo.cm | Bertrand Kamdem) Tj
+/F1 9 Tf 1 0 0 1 50 182 Tm (user.chantal.ngo bassong@immo.cm | Chantal Ngo Bassong) Tj
+/F1 9 Tf 1 0 0 1 50 169 Tm (user.estelle.mvondo@immo.cm | Estelle Mvondo) Tj
+/F1 9 Tf 1 0 0 1 50 156 Tm (user.herve.djoumessi@immo.cm | Herve Djoumessi) Tj
+/F1 9 Tf 1 0 0 1 50 143 Tm (user.olivier.manga@immo.cm | Olivier Manga) Tj
+/F1 9 Tf 1 0 0 1 50 130 Tm (user.rodrigue.essomba@immo.cm | Rodrigue Essomba) Tj
+/F1 9 Tf 1 0 0 1 50 117 Tm (user.suzanne.ndoumbe@immo.cm | Suzanne Ndoumbe) Tj
+/F1 9 Tf 1 0 0 1 50 104 Tm (user.yannick.fotso@immo.cm | Yannick Fotso) Tj
+ET
+
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000336 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+3965
+%%EOF
