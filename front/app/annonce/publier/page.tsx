@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, X, Plus, Home, Loader2, Sparkles, MapPin } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createAd, getToken, generateDescription, detectProximity, geocodePlace } from "@/lib/api"
+import { fileToResizedDataURL } from "@/lib/image"
 import { LocationPickerMap } from "@/components/location-picker-map"
 
 interface DetectedPref {
@@ -118,13 +119,13 @@ export default function PublierAnnoncePage() {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
-    Array.from(files).forEach((file) => {
+    // Redimensionne à 1600 px : photos nettes à l'écran, payload JSON maîtrisé (évite le 413)
+    Array.from(files).forEach(async (file) => {
       if (!file.type.startsWith("image/")) return
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setPhotos((prev) => [...prev, event.target?.result as string])
-      }
-      reader.readAsDataURL(file)
+      try {
+        const dataUrl = await fileToResizedDataURL(file, 1600, 0.82)
+        setPhotos((prev) => [...prev, dataUrl])
+      } catch {}
     })
     e.target.value = ""
   }

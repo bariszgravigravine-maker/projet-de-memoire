@@ -25,7 +25,7 @@ app.set('trust proxy', 1);
 // --- Sécurité & middlewares globaux ---
 app.use(helmet());
 app.use(cors({ origin: config.cors.origin, credentials: true }));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '15mb' })); // photos base64 (avatar, annonces)
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(config.env === 'development' ? 'dev' : 'combined'));
 app.use(globalLimiter);

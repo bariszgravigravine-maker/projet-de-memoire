@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getProfile, updateProfile, updatePreferences, clearAuth } from "@/lib/api"
+import { fileToResizedDataURL } from "@/lib/image"
 
 // Mock data aligned with backend users entity
 const MOCK_USER = {
@@ -106,13 +107,13 @@ export function ProfileView() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [position, setPosition] = useState({ x: 0, y: 0, z: 0 })
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => setProfileImage(reader.result as string)
-      reader.readAsDataURL(file)
-    }
+    if (!file) return
+    // Avatar : 512 px suffisent — évite le 413 (payload JSON trop lourd)
+    try {
+      setProfileImage(await fileToResizedDataURL(file, 512, 0.85))
+    } catch {}
   }
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {

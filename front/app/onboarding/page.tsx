@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Check, ArrowRight, Home, Building2, Trees, Store, Warehouse, Briefcase, Hotel, Bath, Car, Dumbbell, Waves, Camera, User, Search, KeyRound } from "lucide-react"
 import { NestFindLogo } from "@/components/nestfind-logo"
 import { getToken, updatePreferences, updateProfile } from "@/lib/api"
+import { fileToResizedDataURL } from "@/lib/image"
 
 const PROPERTY_TYPES = [
   { label: "Maison à louer", icon: Home },
@@ -134,12 +135,13 @@ export default function OnboardingPage() {
     )
   }
 
-  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => setPhoto(reader.result as string)
-    reader.readAsDataURL(file)
+    // Avatar : 512 px suffisent — évite le 413 (payload JSON trop lourd)
+    try {
+      setPhoto(await fileToResizedDataURL(file, 512, 0.85))
+    } catch {}
   }
 
   // Sauvegarde réelle : préférences + profil sont persistés en base et
