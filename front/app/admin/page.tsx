@@ -10,10 +10,15 @@ import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/skeleton"
 import {
   adminListPendingAds, adminValidateAd, adminRejectAd,
-  adminListUsers, adminUpdateUserStatus, adminDeleteUser, adminStats
+  adminListUsers, adminUpdateUserStatus, adminDeleteUser, adminStats, getUser
 } from "@/lib/api"
 
 type Tab = "pending" | "users" | "stats"
+
+const ROLE_LABELS: Record<string, string> = {
+  USER: "Utilisateur",
+  ADMIN: "Administrateur",
+}
 
 export default function AdminPage() {
   const router = useRouter()
@@ -24,6 +29,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [forbidden, setForbidden] = useState(false)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -45,6 +51,14 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => {
+    // Contrôle côté client : la page admin est réservée au rôle ADMIN.
+    // Le backend vérifie de toute façon le rôle dans le JWT (requireRole).
+    const u = getUser()
+    if (u?.role !== "ADMIN") {
+      setForbidden(true)
+      setLoading(false)
+      return
+    }
     fetchAll()
   }, [fetchAll])
 
@@ -159,14 +173,22 @@ export default function AdminPage() {
           </div>
         )}
 
-        {error && (
+        {forbidden && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <Shield size={40} className="text-red-500 mb-3" />
+            <p className="text-sm font-semibold text-foreground">Accès réservé à l'administrateur</p>
+            <p className="text-xs text-muted-foreground mt-1">Cette page n'est visible qu'avec un compte administrateur.</p>
+          </div>
+        )}
+
+        {error && !forbidden && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <AlertCircle size={40} className="text-red-500 mb-3" />
             <p className="text-sm font-semibold text-foreground">{error}</p>
           </div>
         )}
 
-        {!loading && !error && tab === "pending" && (
+        {!loading && !error && !forbidden && tab === "pending" && (
           <div className="space-y-3">
             {pendingAds.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -212,7 +234,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {!loading && !error && tab === "users" && (
+        {!loading && !error && !forbidden && tab === "users" && (
           <div className="space-y-3">
             {users.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -234,7 +256,7 @@ export default function AdminPage() {
                         <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-foreground">
-                            {user.role}
+                            {ROLE_LABELS[user.role] || user.role}
                           </span>
                           <span className={cn(
                             "px-2 py-0.5 rounded-full text-[10px] font-semibold",
@@ -284,7 +306,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {!loading && !error && tab === "stats" && (
+        {!loading && !error && !forbidden && tab === "stats" && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {stats ? (
               Object.entries(stats).map(([key, value]: [string, any]) => (

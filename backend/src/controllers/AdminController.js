@@ -42,7 +42,8 @@ export const getStats = asyncHandler(async (req, res) => {
     activeAds: allAds.filter((a) => a.status === 'ACTIVE').length,
     pendingAds: allAds.filter((a) => a.status === 'EN_ATTENTE').length,
     totalUsers: allUsers.length,
-    agents: allUsers.filter((u) => u.role === 'AGENT').length,
+    utilisateurs: allUsers.filter((u) => u.role === 'USER').length,
+    admins: allUsers.filter((u) => u.role === 'ADMIN').length,
   });
 });
 

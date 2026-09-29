@@ -387,7 +387,7 @@ function MessagesContent() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{name}</p>
                       <p className="text-[11px] text-stone-400">
-                        {u.role === "AGENT" ? "Agent" : u.role === "ADMIN" ? "Admin" : "Utilisateur"}
+                        {u.role === "ADMIN" ? "Admin" : "Utilisateur"}
                       </p>
                     </div>
                     <Send className="w-4 h-4 text-stone-300" />

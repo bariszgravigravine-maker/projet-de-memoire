@@ -19,7 +19,6 @@ function AuthForm() {
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [phone, setPhone] = useState("")
-  const [role, setRole] = useState<"USER" | "AGENT">("USER")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -29,7 +28,7 @@ function AuthForm() {
     setLoading(true)
     setError(null)
     try {
-      await register({ email, password, firstName, lastName, phone, role })
+      await register({ email, password, firstName, lastName, phone })
       router.push("/onboarding")
     } catch (err: any) {
       setError(err.message || "Erreur lors de l'inscription")
@@ -149,31 +148,6 @@ function AuthForm() {
                     className="w-full bg-white border border-black/10 rounded-2xl h-14 text-foreground placeholder:text-muted-foreground focus:border-foreground/30 focus:ring-0 focus:outline-none text-base transition-all duration-200 hover:bg-muted/30 px-4"
                     placeholder="Téléphone (ex: +237690000000)"
                   />
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRole("USER")}
-                      className={`flex-1 h-12 rounded-2xl text-sm font-medium border transition-all ${
-                        role === "USER"
-                          ? "bg-foreground text-background border-foreground"
-                          : "bg-white border-black/10 text-foreground/60 hover:bg-muted/30"
-                      }`}
-                    >
-                      Chercheur
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRole("AGENT")}
-                      className={`flex-1 h-12 rounded-2xl text-sm font-medium border transition-all ${
-                        role === "AGENT"
-                          ? "bg-foreground text-background border-foreground"
-                          : "bg-white border-black/10 text-foreground/60 hover:bg-muted/30"
-                      }`}
-                    >
-                      Agent / Propriétaire
-                    </button>
-                  </div>
 
                   <div className="relative">
                     <input

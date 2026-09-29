@@ -161,10 +161,10 @@ function buildDescription(type, district, city, area, beds, baths, price) {
 async function ensureAgent(email, firstName, lastName, phone, passHash) {
   const res = await pool.query(
     `INSERT INTO users (email, password_hash, first_name, last_name, phone, role, bio)
-     VALUES ($1, $2, $3, $4, $5, 'AGENT', $6)
+     VALUES ($1, $2, $3, $4, $5, 'USER', $6)
      ON CONFLICT (email) DO UPDATE SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name
      RETURNING id`,
-    [email, passHash, firstName, lastName, phone, `Agent immobilier à ${lastName}.`]
+    [email, passHash, firstName, lastName, phone, `Propri�taire à ${lastName}.`]
   );
   return res.rows[0].id;
 }

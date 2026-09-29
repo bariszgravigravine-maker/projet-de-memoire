@@ -35,7 +35,7 @@ async function seed() {
 
     const agent = await pool.query(
       `INSERT INTO users (email, password_hash, first_name, last_name, phone, role, profile_photo_url, bio, active_ads_count, total_views, total_contacts)
-       VALUES ('agent@immo.cm', $1, 'Kamga', 'Paul', '+237691111111', 'AGENT', 'https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f?w=200', 'Agent immobilier à Douala, spécialiste villas et appartements haut standing.', 4, 320, 45)
+       VALUES ('agent@immo.cm', $1, 'Kamga', 'Paul', '+237691111111', 'USER', 'https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f?w=200', 'Propri�taire à Douala, spécialiste villas et appartements haut standing.', 4, 320, 45)
        ON CONFLICT (email) DO UPDATE SET profile_photo_url = EXCLUDED.profile_photo_url, bio = EXCLUDED.bio
        RETURNING id`,
       [agentPass]
@@ -43,7 +43,7 @@ async function seed() {
 
     const agent2 = await pool.query(
       `INSERT INTO users (email, password_hash, first_name, last_name, phone, role, profile_photo_url, bio, active_ads_count, total_views, total_contacts)
-       VALUES ('ndongo@immo.cm', $1, 'Ndongo', 'Marie', '+237692222222', 'AGENT', 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200', 'Agente immobilière à Yaoundé, spécialiste studios et chambres pour étudiants.', 4, 180, 28)
+       VALUES ('ndongo@immo.cm', $1, 'Ndongo', 'Marie', '+237692222222', 'USER', 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200', 'Propriétaire à Yaoundé, spécialiste studios et chambres pour étudiants.', 4, 180, 28)
        ON CONFLICT (email) DO UPDATE SET profile_photo_url = EXCLUDED.profile_photo_url, bio = EXCLUDED.bio
        RETURNING id`,
       [agentPass]
@@ -60,7 +60,7 @@ async function seed() {
     // --- Nouveaux utilisateurs avec photos de profils noirs ---
     const newUser1 = await pool.query(
       `INSERT INTO users (email, password_hash, first_name, last_name, phone, role, profile_photo_url, bio, active_ads_count, total_views, total_contacts)
-       VALUES ('aisha.toumba@immo.cm', $1, 'Aisha', 'Toumba', '+237694444444', 'AGENT', 'https://images.unsplash.com/photo-1531259683007-016a7b628fc2?w=200', 'Agente immobilière à Douala, passionnée par l''immobilier moderne.', 3, 250, 30)
+       VALUES ('aisha.toumba@immo.cm', $1, 'Aisha', 'Toumba', '+237694444444', 'USER', 'https://images.unsplash.com/photo-1531259683007-016a7b628fc2?w=200', 'Propriétaire à Douala, passionnée par l''immobilier moderne.', 3, 250, 30)
        ON CONFLICT (email) DO UPDATE SET profile_photo_url = EXCLUDED.profile_photo_url, bio = EXCLUDED.bio
        RETURNING id`,
       [agentPass]
@@ -92,7 +92,7 @@ async function seed() {
 
     const newUser5 = await pool.query(
       `INSERT INTO users (email, password_hash, first_name, last_name, phone, role, profile_photo_url, bio, active_ads_count, total_views, total_contacts)
-       VALUES ('sandrine.foka@immo.cm', $1, 'Sandrine', 'Foka', '+237698888888', 'AGENT', 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=200', 'Agente immobilière à Bafoussam, spécialiste maisons familiales.', 2, 120, 15)
+       VALUES ('sandrine.foka@immo.cm', $1, 'Sandrine', 'Foka', '+237698888888', 'USER', 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=200', 'Propriétaire à Bafoussam, spécialiste maisons familiales.', 2, 120, 15)
        ON CONFLICT (email) DO UPDATE SET profile_photo_url = EXCLUDED.profile_photo_url, bio = EXCLUDED.bio
        RETURNING id`,
       [agentPass]

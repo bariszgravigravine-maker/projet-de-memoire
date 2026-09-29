@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
   first_name      VARCHAR(100),
   last_name       VARCHAR(100),
   phone           VARCHAR(30),
-  role            VARCHAR(20) NOT NULL DEFAULT 'USER', -- USER | AGENT | ADMIN
+  role            VARCHAR(20) NOT NULL DEFAULT 'USER', -- USER | ADMIN
   status          VARCHAR(20) NOT NULL DEFAULT 'ACTIF', -- ACTIF | SUSPENDU | SUPPRIME
   budget_max      NUMERIC(14, 2) DEFAULT 0,
   preferred_types TEXT[] DEFAULT '{}',
@@ -200,6 +200,12 @@ async function initDatabase() {
   console.log('[DB] Initialisation du schéma immo_db...');
   try {
     await pool.query(SCHEMA_SQL);
+    // Migration roles : un seul type d'utilisateur (USER) + ADMIN.
+    // Les anciens comptes AGENT deviennent USER -- memes droits fonctionnels.
+    const migrated = await pool.query("UPDATE users SET role = 'USER' WHERE role = 'AGENT'");
+    if (migrated.rowCount > 0) {
+      console.log(`[DB] ${migrated.rowCount} compte(s) AGENT migre(s) en USER.`);
+    }
     console.log('[DB] Schéma créé avec succès.');
   } catch (err) {
     console.error('[DB] Erreur lors de l\'initialisation:', err.message);

@@ -24,7 +24,7 @@ const MOCK_USER = {
   first_name: "Ndongo",
   last_name: "Fotso",
   phone: "+237 6 98 76 54 32",
-  role: "AGENT",
+  role: "USER",
   status: "ACTIF",
   budget_max: 500000,
   preferred_types: ["maison", "villa", "appartement"],
@@ -38,13 +38,11 @@ const MOCK_USER = {
 
 const ROLE_LABELS: Record<string, string> = {
   USER: "Utilisateur",
-  AGENT: "Agent immobilier",
   ADMIN: "Administrateur",
 }
 
 const ROLE_ICONS: Record<string, typeof User> = {
   USER: User,
-  AGENT: Building2,
   ADMIN: BadgeCheck,
 }
 
@@ -276,7 +274,7 @@ export function ProfileView() {
               <Award className="w-4 h-4" />
               <h3 className="text-sm font-bold">Niveau</h3>
             </div>
-            <p className="text-2xl font-black">{user.role === "AGENT" ? "Agent Pro" : user.role === "ADMIN" ? "Admin" : "Membre"}</p>
+            <p className="text-2xl font-black">{user.role === "ADMIN" ? "Administrateur" : "Utilisateur"}</p>
             <p className="text-xs opacity-70 mt-1">{memberDays} jours d'activité</p>
           </div>
         </aside>

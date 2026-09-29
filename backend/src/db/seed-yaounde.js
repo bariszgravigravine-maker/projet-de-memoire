@@ -49,15 +49,15 @@ const YAOUNDE_DISTRICTS = {
 const CITY = 'Yaoundé';
 
 // --- Nouveaux agents (propriétaires des biens) ---
-const NEW_AGENTS = [
-  { first: 'Aristide',  last: 'Mbarga',    phone: '+237677101001', bio: 'Agent immobilier à Bastos et Nlongkak, spécialiste appartements haut standing.' },
-  { first: 'Clarisse',  last: 'Eyenga',    phone: '+237677101002', bio: 'Agente immobilière à Ngoa-Ekellé, spécialiste studios et chambres étudiantes.' },
-  { first: 'Benoît',    last: 'Talla',     phone: '+237677101003', bio: 'Agent immobilier à Mvan et Ekounou, spécialiste maisons familiales.' },
-  { first: 'Nadège',    last: 'Mballa',    phone: '+237677101004', bio: 'Agente immobilière à Etoudi et Tsinga, villas et terrains.' },
-  { first: 'Ghislain',  last: 'Nkomo',     phone: '+237677101005', bio: 'Agent immobilier à Mokolo et Briqueterie, locaux commerciaux et bureaux.' },
-  { first: 'Christelle',last: 'Fouda',     phone: '+237677101006', bio: 'Agente immobilière à Odza et Emana, terrains titrés.' },
-  { first: 'Serge',     last: 'Ngono',     phone: '+237677101007', bio: 'Agent immobilier à Nkolbisson et Nsimeyong, proche universités.' },
-  { first: 'Mireille',  last: 'Abanda',    phone: '+237677101008', bio: 'Agente immobilière à Omnisport et Mfandena, appartements neufs.' },
+const NEW_OWNERS = [
+  { first: 'Aristide',  last: 'Mbarga',    phone: '+237677101001', bio: 'Propri�taire à Bastos et Nlongkak, spécialiste appartements haut standing.' },
+  { first: 'Clarisse',  last: 'Eyenga',    phone: '+237677101002', bio: 'Propriétaire à Ngoa-Ekellé, spécialiste studios et chambres étudiantes.' },
+  { first: 'Benoît',    last: 'Talla',     phone: '+237677101003', bio: 'Propri�taire à Mvan et Ekounou, spécialiste maisons familiales.' },
+  { first: 'Nadège',    last: 'Mballa',    phone: '+237677101004', bio: 'Propriétaire à Etoudi et Tsinga, villas et terrains.' },
+  { first: 'Ghislain',  last: 'Nkomo',     phone: '+237677101005', bio: 'Propri�taire à Mokolo et Briqueterie, locaux commerciaux et bureaux.' },
+  { first: 'Christelle',last: 'Fouda',     phone: '+237677101006', bio: 'Propriétaire à Odza et Emana, terrains titrés.' },
+  { first: 'Serge',     last: 'Ngono',     phone: '+237677101007', bio: 'Propri�taire à Nkolbisson et Nsimeyong, proche universités.' },
+  { first: 'Mireille',  last: 'Abanda',    phone: '+237677101008', bio: 'Propriétaire à Omnisport et Mfandena, appartements neufs.' },
 ];
 
 // --- Nouveaux particuliers (chercheurs de biens) ---
@@ -288,12 +288,12 @@ async function seedYaounde() {
 
     // --- 1) Nouveaux agents ---
     const agentIds = [];
-    for (let i = 0; i < NEW_AGENTS.length; i++) {
-      const a = NEW_AGENTS[i];
+    for (let i = 0; i < NEW_OWNERS.length; i++) {
+      const a = NEW_OWNERS[i];
       const email = `agent.${a.first.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')}.${a.last.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')}@immo.cm`;
       const id = await ensureUser({
         email, passHash: agentPass, first: a.first, last: a.last,
-        phone: a.phone, role: 'AGENT', bio: a.bio,
+        phone: a.phone, role: 'USER', bio: a.bio,
       });
       agentIds.push(id);
     }

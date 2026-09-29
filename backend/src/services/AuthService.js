@@ -24,13 +24,15 @@ export const AuthService = {
       throw err;
     }
 
+    // Deux rôles seulement : USER (tous les utilisateurs) et ADMIN (plateforme).
+    // Le rôle n'est jamais accepté depuis le client : ADMIN s'attribue en base.
     const user = await UserModel.create({
       email,
       password,
       firstName,
       lastName,
       phone,
-      role: role || 'USER',
+      role: 'USER',
       budgetMax,
       preferredTypes,
       preferredZones,

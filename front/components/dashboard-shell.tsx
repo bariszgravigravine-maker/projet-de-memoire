@@ -51,9 +51,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   // Avatar réel de l'utilisateur (photo choisie à l'onboarding / profil)
   const [avatar, setAvatar] = useState("/images/agent.jpg")
+  const [isAdmin, setIsAdmin] = useState(false)
   useEffect(() => {
     const u = getUser()
     if (u?.profile_photo_url) setAvatar(u.profile_photo_url)
+    if (u?.role === "ADMIN") setIsAdmin(true)
   }, [])
 
   useEffect(() => {
@@ -114,6 +116,18 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             >
               <Grid2X2 size={17} className="text-foreground" />
             </button>
+            {isAdmin && (
+              <button
+                onClick={() => window.location.href = "/admin"}
+                className="w-8 h-8 flex items-center justify-center"
+                title="Panneau d'administration"
+                style={{ transition: "transform 0.15s cubic-bezier(0.34,1.56,0.64,1)" }}
+                onMouseDown={e => (e.currentTarget.style.transform = "scale(0.88)")}
+                onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+              >
+                <Shield size={17} className="text-foreground" />
+              </button>
+            )}
             <button
               onClick={() => window.location.href = "/dashboard/profile"}
               className="w-8 h-8 rounded-full overflow-hidden border-2 border-foreground/10 hover:opacity-80 transition-opacity"
@@ -199,6 +213,20 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           )
         })}
         <div className="w-5 h-px bg-white/10 my-1" />
+        {isAdmin && (
+          <button
+            onClick={() => window.location.href = "/admin"}
+            className="w-10 h-10 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10"
+            title="Panneau d'administration"
+            style={{
+              transition: "background 0.22s cubic-bezier(0.22,1,0.36,1), color 0.22s ease, transform 0.15s cubic-bezier(0.34,1.56,0.64,1)",
+            }}
+            onMouseDown={e => (e.currentTarget.style.transform = "scale(0.86)")}
+            onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+          >
+            <Shield size={18} />
+          </button>
+        )}
         <button
           onClick={() => window.location.href = "/annonce/publier"}
           className="w-10 h-10 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10"
