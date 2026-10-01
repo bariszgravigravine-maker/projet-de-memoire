@@ -40,6 +40,11 @@ const nextConfig = {
         source: '/socket.io/:path*',
         destination: `${API_ORIGIN}/socket.io/:path*`,
       },
+      // Fichiers uploadés (avatars, photos de biens) — stockage local sur le VPS
+      {
+        source: '/uploads/:path*',
+        destination: `${API_ORIGIN}/uploads/:path*`,
+      },
     ];
   },
 }

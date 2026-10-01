@@ -14,7 +14,9 @@ import crypto from 'crypto';
  */
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
-const PUBLIC_BASE = process.env.PUBLIC_BASE_URL || 'http://185.98.128.123:3001';
+// URL relative — le frontend résout /uploads/* via le proxy Vercel vers le VPS.
+// On ne stocke pas de domaine en base pour éviter le mixed-content (HTTP vs HTTPS).
+const PUBLIC_BASE = process.env.PUBLIC_BASE_URL || '';
 
 // Crée le dossier racine s'il n'existe pas
 try {
