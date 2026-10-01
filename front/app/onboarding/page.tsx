@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Check, ArrowRight, Home, Building2, Trees, Store, Warehouse, Briefcase, Hotel, Bath, Car, Dumbbell, Waves, Camera, User, Search, KeyRound } from "lucide-react"
 import { NestFindLogo } from "@/components/nestfind-logo"
-import { getToken, updatePreferences, updateProfile } from "@/lib/api"
+import { getToken, updatePreferences, updateProfile, saveUser } from "@/lib/api"
 import { fileToResizedDataURL } from "@/lib/image"
 
 const PROPERTY_TYPES = [
@@ -168,6 +168,10 @@ export default function OnboardingPage() {
           phone: phone.trim() || undefined,
           profilePhoto: photo || undefined,
           usageProfiles: usageProfiles.length ? usageProfiles : undefined,
+        }).then((res) => {
+          // Persiste l'utilisateur renvoyé (photo Cloudinary incluse)
+          const saved = res?.data || res
+          if (saved && typeof saved === "object") saveUser(saved)
         })
       )
     }

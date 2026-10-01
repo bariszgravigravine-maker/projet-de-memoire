@@ -15,7 +15,7 @@ import {
   TrendingUp, Calendar, Activity, BarChart3, Clock, Target, Award
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getProfile, updateProfile, updatePreferences, clearAuth } from "@/lib/api"
+import { getProfile, updateProfile, updatePreferences, clearAuth, saveUser } from "@/lib/api"
 import { fileToResizedDataURL } from "@/lib/image"
 
 // Mock data aligned with backend users entity
@@ -160,7 +160,7 @@ export function ProfileView() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await updateProfile({
+      const res = await updateProfile({
         firstName: form.first_name,
         lastName: form.last_name,
         phone: form.phone,
@@ -168,6 +168,11 @@ export function ProfileView() {
         // Sans ce champ la photo n'était jamais persistée.
         profilePhoto: profileImage?.startsWith("data:") ? profileImage : undefined,
       })
+      // Rafraîchit le localStorage et l'avatar : le serveur renvoie
+      // l'URL Cloudinary finale dans profile_photo_url.
+      const saved = res?.data || res
+      if (saved?.profile_photo_url) setProfileImage(saved.profile_photo_url)
+      if (saved && typeof saved === "object") saveUser(saved)
       await updatePreferences({
         preferredTypes: form.preferred_types,
         preferredZones: form.preferred_zones,
