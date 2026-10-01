@@ -55,6 +55,18 @@ app.get('/health', async (req, res) => {
 // --- Routes API ---
 app.use('/api', routes);
 
+// --- Fichiers uploadés (stockage local des images) ---
+// Sert les avatars et photos de biens stockés dans backend/uploads/.
+// Nginx proxie déjà /uploads/* vers le backend (voir config Nginx).
+import path from 'path';
+import fs from 'fs';
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+app.use('/uploads', express.static(uploadsDir, {
+  maxAge: '7d',
+  setHeaders: (res) => { res.setHeader('Cache-Control', 'public, max-age=604800'); },
+}));
+
 // --- Route racine ---
 app.get('/', (req, res) => {
   res.json({

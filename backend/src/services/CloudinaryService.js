@@ -1,74 +1,74 @@
-import { v2 as cloudinary } from 'cloudinary';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
 
 /**
- * Service d'upload d'images vers Cloudinary.
+ * Service de stockage local des images.
  *
- * Variables d'environnement requises :
- *   - CLOUDINARY_CLOUD_NAME
- *   - CLOUDINARY_API_KEY
- *   - CLOUDINARY_API_SECRET
- * ou
- *   - CLOUDINARY_URL (alternative)
+ * Remplace l'upload Cloudinary par un stockage sur le VPS dans
+ * backend/uploads/. Les images sont servies publiquement par Express
+ * (express.static) et Nginx via /uploads/*.
  *
- * Si Cloudinary n'est pas configuré, les fonctions renvoient null
- * (le frontend peut alors replier sur le base64 local).
+ * L'interface (uploadImage, uploadImages, isConfigured) est conservée
+ * pour ne pas modifier les services qui l'utilisent (AdService, AuthService).
  */
 
-let configured = false;
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+const PUBLIC_BASE = process.env.PUBLIC_BASE_URL || 'http://185.98.128.123:3001';
 
-function configure() {
-  if (configured) return true;
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-  const apiKey = process.env.CLOUDINARY_API_KEY;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET;
-  const url = process.env.CLOUDINARY_URL;
-
-  if (url) {
-    cloudinary.config({ url });
-    configured = true;
-    return true;
-  }
-  if (cloudName && apiKey && apiSecret) {
-    cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret });
-    configured = true;
-    return true;
-  }
-  return false;
+// Crée le dossier racine s'il n'existe pas
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+} catch (e) {
+  console.error('[Storage] Impossible de créer uploads/:', e.message);
 }
 
 /**
- * Upload une image (buffer ou base64) vers Cloudinary.
+ * Extrait le buffer binaire et l'extension à partir d'un Buffer ou d'une
+ * chaîne base64 / data URL.
+ */
+function decodeInput(data) {
+  if (Buffer.isBuffer(data)) {
+    return { buffer: data, ext: 'jpg' };
+  }
+  if (typeof data === 'string') {
+    // data:image/png;base64,xxxx
+    const m = data.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (m) {
+      return { buffer: Buffer.from(m[2], 'base64'), ext: m[1] === 'jpeg' ? 'jpg' : m[1] };
+    }
+    // base64 simple
+    return { buffer: Buffer.from(data, 'base64'), ext: 'jpg' };
+  }
+  return null;
+}
+
+/**
+ * Stocke une image sur le disque et retourne son URL publique.
  * @param {Buffer|string} data - Buffer binaire ou chaîne base64 (data URL ou base64 simple)
- * @param {Object} opts - Options : { folder, public_id, resource_type }
- * @returns {Promise<string|null>} URL sécurisée HTTPS de l'image, ou null si Cloudinary non configuré
+ * @param {Object} opts - Options : { folder }
+ * @returns {Promise<string|null>} URL publique de l'image, ou null si échec
  */
 export async function uploadImage(data, opts = {}) {
-  if (!configure()) return null;
+  const decoded = decodeInput(data);
+  if (!decoded) return null;
+
   const folder = opts.folder || 'nestfind/properties';
-  const resourceType = opts.resource_type || 'image';
+  // Nettoie le folder : nestfind/avatars → uploads/avatars
+  const localFolder = folder.replace(/^nestfind\//, '');
+  const dir = path.join(UPLOADS_DIR, localFolder);
 
   try {
-    let uploadPayload = data;
-    // Si data est un Buffer, on le convertit en data URL
-    if (Buffer.isBuffer(data)) {
-      const b64 = data.toString('base64');
-      uploadPayload = `data:image/jpeg;base64,${b64}`;
-    } else if (typeof data === 'string' && data.startsWith('data:image')) {
-      // déjà une data URL, on l'utilise telle quelle
-      uploadPayload = data;
-    } else if (typeof data === 'string') {
-      // base64 simple sans préfixe
-      uploadPayload = `data:image/jpeg;base64,${data}`;
-    }
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    const result = await cloudinary.uploader.upload(uploadPayload, {
-      folder,
-      resource_type: resourceType,
-      transformation: [{ quality: 'auto', fetch_format: 'auto' }],
-    });
-    return result?.secure_url || result?.url || null;
+    const name = crypto.randomBytes(12).toString('hex') + '.' + decoded.ext;
+    const filePath = path.join(dir, name);
+    fs.writeFileSync(filePath, decoded.buffer);
+
+    const publicUrl = `${PUBLIC_BASE}/uploads/${localFolder}/${name}`;
+    return publicUrl;
   } catch (err) {
-    console.error('[Cloudinary] Erreur upload:', err.message);
+    console.error('[Storage] Erreur upload local:', err.message);
     return null;
   }
 }
@@ -86,10 +86,10 @@ export async function uploadImages(items, opts = {}) {
 }
 
 /**
- * Indique si Cloudinary est correctement configuré.
+ * Le stockage local est toujours "configuré" tant que le dossier existe.
  */
 export function isConfigured() {
-  return configure();
+  return fs.existsSync(UPLOADS_DIR);
 }
 
 export default { uploadImage, uploadImages, isConfigured };
