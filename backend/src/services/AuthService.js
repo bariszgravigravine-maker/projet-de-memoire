@@ -73,13 +73,16 @@ export const AuthService = {
   async updateProfile(userId, data) {
     // Photo de profil : si le front envoie une data URL base64 (choisie dans
     // l'onboarding ou le profil), on l'upload vers Cloudinary d'abord.
+    // Si Cloudinary échoue (clé restreinte, quota…), on stocke le data URL
+    // directement en base — l'avatar s'affiche quand même (même pattern que
+    // les photos d'annonces dans AdService).
     let profilePhotoUrl = data.profilePhotoUrl || null;
     const rawPhoto = data.profilePhoto || data.photo;
     if (typeof rawPhoto === 'string' && rawPhoto.startsWith('data:image')) {
       const uploaded = await CloudinaryService.uploadImage(rawPhoto, {
         folder: `nestfind/avatars`,
       });
-      if (uploaded) profilePhotoUrl = uploaded;
+      profilePhotoUrl = uploaded || rawPhoto;
     }
     const user = await UserModel.updateProfile(userId, { ...data, profilePhotoUrl });
     if (!user) {
