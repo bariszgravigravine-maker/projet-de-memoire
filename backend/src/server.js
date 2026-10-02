@@ -57,6 +57,7 @@ io.on('connection', (socket) => {
   // Indicateur "en train d'écrire" : relai simple vers la room du destinataire.
   // Rien n'est persisté — c'est un signal éphémère (comme WhatsApp).
   socket.on('typing', ({ conversationId, to } = {}) => {
+    console.log(`[WS] typing from ${socket.userId} to ${to} conv ${conversationId}`);
     if (to) io.to(`user:${to}`).emit('typing', { conversationId, from: socket.userId });
   });
   socket.on('stop_typing', ({ conversationId, to } = {}) => {
