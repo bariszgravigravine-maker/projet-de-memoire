@@ -104,10 +104,10 @@ export function UserChatComposer({ onSend, onTyping, disabled = false }: UserCha
   }, [isRecording, value, handleInput])
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 px-3 pb-2 z-20 bg-white/80 backdrop-blur-sm">
+    <div className="fixed bottom-0 left-0 right-0 px-3 pb-2 z-20">
       <div
         className={cn(
-          "relative max-w-3xl mx-auto flex flex-col gap-2 p-3 bg-white rounded-3xl transition-all",
+          "relative max-w-3xl mx-auto flex flex-col gap-1.5 p-2.5 bg-white rounded-3xl transition-all",
           "border border-stone-200 focus-within:ring-2 focus-within:ring-stone-200"
         )}
         style={{
@@ -144,7 +144,7 @@ export function UserChatComposer({ onSend, onTyping, disabled = false }: UserCha
             disabled={disabled}
             rows={1}
             className={cn(
-              "flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-stone-800 placeholder:text-stone-400",
+              "flex-1 resize-none bg-transparent px-2 py-1 text-sm text-stone-800 placeholder:text-stone-400",
               "focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed max-h-[120px] overflow-y-auto"
             )}
           />
@@ -153,7 +153,7 @@ export function UserChatComposer({ onSend, onTyping, disabled = false }: UserCha
             onClick={handleSend}
             disabled={(!value.trim() && !uploadedImage) || disabled}
             className={cn(
-              "w-9 h-9 rounded-full bg-foreground text-background flex items-center justify-center transition-all",
+              "w-8 h-8 rounded-full bg-foreground text-background flex items-center justify-center transition-all",
               (!value.trim() && !uploadedImage) || disabled ? "opacity-40 cursor-not-allowed" : "hover:scale-105"
             )}
           >
@@ -168,7 +168,7 @@ export function UserChatComposer({ onSend, onTyping, disabled = false }: UserCha
             onClick={toggleRecording}
             disabled={disabled}
             className={cn(
-              "h-9 w-9 rounded-full flex items-center justify-center transition-colors",
+              "h-8 w-8 rounded-full flex items-center justify-center transition-colors",
               isRecording ? "bg-red-500 text-white" : "bg-zinc-100 hover:bg-zinc-200 text-stone-700"
             )}
           >
@@ -178,7 +178,7 @@ export function UserChatComposer({ onSend, onTyping, disabled = false }: UserCha
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
-            className="h-9 w-9 rounded-full bg-zinc-100 hover:bg-zinc-200 text-stone-700 flex items-center justify-center transition-colors"
+            className="h-8 w-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-stone-700 flex items-center justify-center transition-colors"
           >
             <Paperclip className="w-4 h-4" />
           </button>
