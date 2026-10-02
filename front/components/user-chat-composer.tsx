@@ -104,10 +104,10 @@ export function UserChatComposer({ onSend, onTyping, disabled = false }: UserCha
   }, [isRecording, value, handleInput])
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 px-4 pb-4 z-20 bg-white/80 backdrop-blur-sm">
+    <div className="fixed bottom-0 left-0 right-0 px-3 pb-2 z-20 bg-white/80 backdrop-blur-sm">
       <div
         className={cn(
-          "relative max-w-3xl mx-auto flex flex-col gap-3 p-4 bg-white rounded-3xl transition-all",
+          "relative max-w-3xl mx-auto flex flex-col gap-2 p-3 bg-white rounded-3xl transition-all",
           "border border-stone-200 focus-within:ring-2 focus-within:ring-stone-200"
         )}
         style={{
