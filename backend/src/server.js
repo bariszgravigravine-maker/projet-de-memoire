@@ -54,14 +54,18 @@ io.on('connection', (socket) => {
   // Envoie la liste courante des utilisateurs en ligne au nouveau connecté
   socket.emit('online_users', [...onlineUsers.keys()]);
 
-  // Indicateur "en train d'écrire" : relai simple vers la room du destinataire.
-  // Rien n'est persisté — c'est un signal éphémère (comme WhatsApp).
-  socket.on('typing', ({ conversationId, to } = {}) => {
-    console.log(`[WS] typing from ${socket.userId} to ${to} conv ${conversationId}`);
-    if (to) io.to(`user:${to}`).emit('typing', { conversationId, from: socket.userId });
+  // Indicateur "en train d'écrire" : le client rejoint une room par
+  // conversation (join_conv), puis typing/stop_typing sont diffusés aux
+  // AUTRES membres de la room (socket.to → l'émetteur est exclu). Aucun
+  // lookup du destinataire n'est nécessaire côté client.
+  socket.on('join_conv', (conversationId) => {
+    if (conversationId) socket.join(`conv:${conversationId}`);
   });
-  socket.on('stop_typing', ({ conversationId, to } = {}) => {
-    if (to) io.to(`user:${to}`).emit('stop_typing', { conversationId, from: socket.userId });
+  socket.on('typing', ({ conversationId } = {}) => {
+    if (conversationId) socket.to(`conv:${conversationId}`).emit('typing', { conversationId, from: socket.userId });
+  });
+  socket.on('stop_typing', ({ conversationId } = {}) => {
+    if (conversationId) socket.to(`conv:${conversationId}`).emit('stop_typing', { conversationId, from: socket.userId });
   });
 
   socket.on('disconnect', () => {

@@ -286,30 +286,28 @@ function MessagesContent() {
     }
   }, [socket, selectedId])
 
-  // Changement de conversation → l'indicateur ne doit pas persister
+  // Changement de conversation → l'indicateur ne doit pas persister.
+  // On rejoint aussi la room Socket.IO de la conversation pour recevoir
+  // les événements typing des autres membres.
   useEffect(() => {
     setOtherTyping(false)
-  }, [selectedId])
+    if (socket && selectedId) socket.emit("join_conv", selectedId)
+  }, [socket, selectedId])
 
-  // Émission "en train d'écrire" — throttlée à 1 event / 2 s pour ne pas
-  // spammer le socket à chaque touche pressée. Le destinataire est résolu
-  // depuis la liste des conversations (autre membre de la conversation).
+  // Émission "en train d'écrire" — throttlée à 1 event / 2 s. Diffusée à la
+  // room de la conversation côté serveur (aucun lookup du destinataire).
   const emitTyping = useCallback(() => {
     if (!socket || !selectedId) return
-    const to = conversations.find((c) => c.id === selectedId)?.targetUserId
-    if (!to) return
     const now = Date.now()
     if (now - lastTypingSentRef.current < 2000) return
     lastTypingSentRef.current = now
-    socket.emit("typing", { conversationId: selectedId, to })
-  }, [socket, selectedId, conversations])
+    socket.emit("typing", { conversationId: selectedId })
+  }, [socket, selectedId])
 
   // Stoppe l'indicateur chez l'autre dès l'envoi du message.
   const emitStopTyping = useCallback(() => {
-    if (!socket || !selectedId) return
-    const to = conversations.find((c) => c.id === selectedId)?.targetUserId
-    if (to) socket.emit("stop_typing", { conversationId: selectedId, to })
-  }, [socket, selectedId, conversations])
+    if (socket && selectedId) socket.emit("stop_typing", { conversationId: selectedId })
+  }, [socket, selectedId])
 
   const handleSend = useCallback(async (content: string, imageData?: string) => {
     if (!selectedId || (!content.trim() && !imageData)) return
