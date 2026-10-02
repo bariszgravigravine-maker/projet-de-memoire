@@ -301,6 +301,7 @@ function MessagesContent() {
     const now = Date.now()
     if (now - lastTypingSentRef.current < 2000) return
     lastTypingSentRef.current = now
+    console.log("[typing] emit", selectedId)
     socket.emit("typing", { conversationId: selectedId })
   }, [socket, selectedId])
 

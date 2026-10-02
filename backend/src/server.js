@@ -62,6 +62,7 @@ io.on('connection', (socket) => {
     if (conversationId) socket.join(`conv:${conversationId}`);
   });
   socket.on('typing', ({ conversationId } = {}) => {
+    console.log(`[WS] typing from ${socket.userId} conv ${conversationId}`);
     if (conversationId) socket.to(`conv:${conversationId}`).emit('typing', { conversationId, from: socket.userId });
   });
   socket.on('stop_typing', ({ conversationId } = {}) => {
