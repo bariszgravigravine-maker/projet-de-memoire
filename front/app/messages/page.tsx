@@ -99,6 +99,12 @@ function MessagesContent() {
   const [myPhoto, setMyPhoto] = useState<string | null>(null)
   const { socket, setUnreadMessages, onlineUsers, startCall } = useRealtime()
 
+  // Indicateur "en train d'écrire…" — affiche trois points tant que l'autre
+  // utilisateur tape. Éphémère : reset auto après 4 s sans nouvel événement.
+  const [otherTyping, setOtherTyping] = useState(false)
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastTypingSentRef = useRef(0)
+
   // Recherche d'utilisateurs (nouvelle conversation — même sans annonce publiée)
   type FoundUser = { id: string; first_name?: string; last_name?: string; profile_photo_url?: string; role?: string }
   const [userQuery, setUserQuery] = useState("")
@@ -259,9 +265,56 @@ function MessagesContent() {
     }
   }, [socket, selectedId, fetchMessages, fetchConversations, refreshUnread])
 
+  // Réception "en train d'écrire" — uniquement pour la conversation ouverte
+  useEffect(() => {
+    if (!socket) return
+    const onTyping = (p: { conversationId?: string }) => {
+      if (p?.conversationId !== selectedId) return
+      setOtherTyping(true)
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+      typingTimeoutRef.current = setTimeout(() => setOtherTyping(false), 4000)
+    }
+    const onStop = (p: { conversationId?: string }) => {
+      if (p?.conversationId === selectedId) setOtherTyping(false)
+    }
+    socket.on("typing", onTyping)
+    socket.on("stop_typing", onStop)
+    return () => {
+      socket.off("typing", onTyping)
+      socket.off("stop_typing", onStop)
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+    }
+  }, [socket, selectedId])
+
+  // Changement de conversation → l'indicateur ne doit pas persister
+  useEffect(() => {
+    setOtherTyping(false)
+  }, [selectedId])
+
+  // Émission "en train d'écrire" — throttlée à 1 event / 2 s pour ne pas
+  // spammer le socket à chaque touche pressée. Le destinataire est résolu
+  // depuis la liste des conversations (autre membre de la conversation).
+  const emitTyping = useCallback(() => {
+    if (!socket || !selectedId) return
+    const to = conversations.find((c) => c.id === selectedId)?.targetUserId
+    if (!to) return
+    const now = Date.now()
+    if (now - lastTypingSentRef.current < 2000) return
+    lastTypingSentRef.current = now
+    socket.emit("typing", { conversationId: selectedId, to })
+  }, [socket, selectedId, conversations])
+
+  // Stoppe l'indicateur chez l'autre dès l'envoi du message.
+  const emitStopTyping = useCallback(() => {
+    if (!socket || !selectedId) return
+    const to = conversations.find((c) => c.id === selectedId)?.targetUserId
+    if (to) socket.emit("stop_typing", { conversationId: selectedId, to })
+  }, [socket, selectedId, conversations])
+
   const handleSend = useCallback(async (content: string, imageData?: string) => {
     if (!selectedId || (!content.trim() && !imageData)) return
     setSending(true)
+    emitStopTyping()
     const tempMsg: Message = {
       id: `temp-${Date.now()}`,
       role: "me",
@@ -301,7 +354,7 @@ function MessagesContent() {
     } finally {
       setSending(false)
     }
-  }, [selectedId, fetchMessages, fetchConversations, myPhoto])
+  }, [selectedId, fetchMessages, fetchConversations, myPhoto, emitStopTyping])
 
   const selected = conversations.find((c) => c.id === selectedId)
 
@@ -605,10 +658,31 @@ function MessagesContent() {
                 )
               ))}
               </div>
+
+              {/* Indicateur "en train d'écrire…" — bulle avec 3 points animés,
+                  alignée côté gauche comme un message de l'autre utilisateur */}
+              {otherTyping && (
+                <div className="px-4 pb-3">
+                  <div className="flex gap-3 items-end">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden bg-stone-200 text-foreground">
+                      {selected?.photo ? (
+                        <img src={selected.photo} alt={selected.name} className="w-full h-full object-cover" />
+                      ) : (
+                        getInitials(selected?.name || "?")[0]
+                      )}
+                    </div>
+                    <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-sm border border-stone-200 flex items-center gap-1.5">
+                      <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Composer */}
-            <UserChatComposer onSend={handleSend} disabled={sending} />
+            <UserChatComposer onSend={handleSend} onTyping={emitTyping} disabled={sending} />
           </>
         ) : (
           <div className="relative flex-1 overflow-hidden">

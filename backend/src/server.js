@@ -54,6 +54,15 @@ io.on('connection', (socket) => {
   // Envoie la liste courante des utilisateurs en ligne au nouveau connecté
   socket.emit('online_users', [...onlineUsers.keys()]);
 
+  // Indicateur "en train d'écrire" : relai simple vers la room du destinataire.
+  // Rien n'est persisté — c'est un signal éphémère (comme WhatsApp).
+  socket.on('typing', ({ conversationId, to } = {}) => {
+    if (to) io.to(`user:${to}`).emit('typing', { conversationId, from: socket.userId });
+  });
+  socket.on('stop_typing', ({ conversationId, to } = {}) => {
+    if (to) io.to(`user:${to}`).emit('stop_typing', { conversationId, from: socket.userId });
+  });
+
   socket.on('disconnect', () => {
     console.log(`[WS] Utilisateur déconnecté: ${socket.userId}`);
     const userSockets = onlineUsers.get(socket.userId);

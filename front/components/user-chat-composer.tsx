@@ -8,10 +8,11 @@ import { cn } from "@/lib/utils"
 
 interface UserChatComposerProps {
   onSend: (content: string, imageData?: string) => void
+  onTyping?: () => void
   disabled?: boolean
 }
 
-export function UserChatComposer({ onSend, disabled = false }: UserChatComposerProps) {
+export function UserChatComposer({ onSend, onTyping, disabled = false }: UserChatComposerProps) {
   const [value, setValue] = useState("")
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [isRecording, setIsRecording] = useState(false)
@@ -135,6 +136,8 @@ export function UserChatComposer({ onSend, disabled = false }: UserChatComposerP
             onChange={(e) => {
               setValue(e.target.value)
               handleInput()
+              // Signale au destinataire que l'on écrit (throttlé côté parent)
+              if (e.target.value.trim()) onTyping?.()
             }}
             onKeyDown={handleKeyDown}
             placeholder="Écrivez un message..."
